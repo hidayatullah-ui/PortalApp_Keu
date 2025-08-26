@@ -1,0 +1,22 @@
+body { 
+    font-family: 'Inter', sans-serif; 
+}
+.modal { 
+    display: none; 
+}
+.modal.show { 
+    display: flex; 
+}
+.sidebar-item-active { 
+    background-color: white; 
+    color: #4f46e5; 
+}
+.sidebar-item-inactive { 
+    color: white; 
+}
+.sidebar-item-inactive:hover { 
+    background-color: rgba(255, 255, 255, 0.1); 
+}
+.sidebar-parent-active { 
+    background-color: rgba(255, 255, 255, 0.1); 
+}
