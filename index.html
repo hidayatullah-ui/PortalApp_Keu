@@ -44,11 +44,11 @@
             <form id="login-form" class="space-y-6">
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Username</label>
-                    <input id="username" type="text" class="w-full px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200" placeholder="Masukkan username Anda" required>
+                    <input id="username" type="text" class="w-full px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200" placeholder="Masukkan username Anda">
                 </div>
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Kata Sandi</label>
-                    <input id="password" type="password" class="w-full px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200" placeholder="Masukkan kata sandi Anda" required>
+                    <input id="password" type="password" class="w-full px-5 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200" placeholder="Masukkan kata sandi Anda">
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition duration-300 shadow-lg">Masuk</button>
             </form>
@@ -264,20 +264,17 @@
 
     <script>
     // ===================================================================================
-    // SCRIPT UTAMA APLIKASI (VERSI DATABASE)
+    // SCRIPT UTAMA APLIKASI
     // ===================================================================================
-    document.addEventListener('DOMContentLoaded', async () => {
-
-        // --- KONFIGURASI API ---
-        const API_BASE_URL = 'https://portal.sulthan.id/api';
+    document.addEventListener('DOMContentLoaded', () => {
 
         // --- STATE MANAJEMEN ---
         const appState = {
             loggedInUser: null,
             activeTab: 'dashboard',
-            dashboardTab: 'ringkasan',
+            dashboardTab: 'ringkasan', // 'ringkasan', 'analisisSertifikat', 'laporanKeuangan'
             dashboardFilter: {
-                type: 'all',
+                type: 'all', // 'all', 'range', 'last3', 'last6', 'last12'
                 month: new Date().getMonth() + 1,
                 year: new Date().getFullYear(),
             },
@@ -286,12 +283,12 @@
             selectedCertificateForForm: null,
             editingSubmission: null,
             sbuUserFormState: {},
-            users: [], // Akan diisi dari server
-            certificates: [], // Masih dari localStorage
-            marketingNames: [], // Masih dari localStorage
-            userSubmissions: [], // Masih dari localStorage
-            transactions: [], // Masih dari localStorage
-            adminTitles: {}, // Masih dari localStorage
+            users: [],
+            certificates: [],
+            marketingNames: [],
+            userSubmissions: [],
+            transactions: [],
+            adminTitles: {},
             actionToConfirm: null,
             sbuKonstruksiData: [],
             konstruksiKlasifikasiData: [],
@@ -321,7 +318,23 @@
             }
         };
         
+        // --- DAFTAR KUNCI LOCAL STORAGE ---
+        // Kunci yang diekspor/impor adalah DATA PENGGUNA, bukan struktur aplikasi
+        const EXPORTABLE_STORAGE_KEYS = [
+            'sulthan-group-users', 'sulthan-group-marketing-names',
+            'sulthan-group-admin-titles', 'sulthan-group-user-submissions', 'sulthan-group-transactions',
+            'sulthan-group-sbu-konstruksi-data', 'sulthan-group-konstruksi-klasifikasi',
+            'sulthan-group-p3sm-kualifikasi', 'sulthan-group-p3sm-biaya-setor', 'sulthan-group-p3sm-biaya-lainnya',
+            'sulthan-group-gapeknas-kualifikasi', 'sulthan-group-gapeknas-biaya-setor', 'sulthan-group-gapeknas-biaya-lainnya',
+            'sulthan-group-sbu-konsultan-data', 'sulthan-group-konsultan-klasifikasi',
+            'sulthan-group-konsultan-kualifikasi', 'sulthan-group-konsultan-biaya-setor', 'sulthan-group-konsultan-biaya-lainnya',
+            'sulthan-group-skk-konstruksi-data', 'sulthan-group-skk-klasifikasi',
+            'sulthan-group-skk-kualifikasi', 'sulthan-group-skk-biaya-setor', 'sulthan-group-skk-biaya-lainnya',
+            // 'sulthan-group-certificates' DIHILANGKAN dari daftar ini agar tidak tertimpa saat impor
+        ];
+
         // --- FUNGSI HELPER ---
+        const generateId = () => `id-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const formatCurrency = (number) => {
             if (typeof number !== 'number' || isNaN(number)) return 'Rp 0';
             return new Intl.NumberFormat('id-ID', {
@@ -374,27 +387,18 @@
         };
 
         // --- INISIALISASI DATA ---
-        const initializeData = async () => {
-            appState.loggedInUser = loadFromStorage('sulthan-group-loggedInUser', null);
-            
-            if (appState.loggedInUser) {
-                try {
-                    const usersResponse = await fetch(`${API_BASE_URL}/users.php`);
-                    if (!usersResponse.ok) {
-                        // Jika sesi tidak valid di server, paksa logout
-                        throw new Error('Sesi tidak valid');
-                    }
-                    appState.users = await usersResponse.json();
-                } catch (error) {
-                    console.error("Gagal memuat data pengguna dari server:", error);
-                    showMessage('Sesi tidak valid atau server bermasalah. Silakan login kembali.', 'error');
-                    handleLogout(); // Paksa logout jika ada masalah
-                    return; // Hentikan eksekusi lebih lanjut
-                }
-            }
-            
-            // Muat semua data lain dari localStorage (untuk fitur yang belum dimigrasi)
+        const initializeData = () => {
             const initialMarketingNames = [{ id: 'mkt-1', name: 'Hidayatullah' }, { id: 'mkt-2', name: 'Abdul Fatahurahman' }, { id: 'mkt-3', name: 'Nuzul Arifin' }];
+            
+            const initialUsers = [
+                { id: 'user-super-admin-1', fullName: 'Super Admin', username: 'superadmin', email: 'superadmin@sultangroup.com', password: 'c3VwZXJhZG1pbjEyMw==', role: 'Super admin' },
+                { id: 'user-admin-1', fullName: 'Admin', username: 'admin', email: 'admin@sultangroup.com', password: 'YWRtaW4xMjM=', role: 'admin' },
+                { id: 'user-manager-1', fullName: 'Manager', username: 'manager', email: 'manager@sultangroup.com', password: 'bWFuYWdlcjEyMw==', role: 'manager' },
+                { id: 'user-karyawan-1', fullName: 'Karyawan', username: 'karyawan', email: 'karyawan@sultangroup.com', password: 'a2FyeWF3YW4xMjM=', role: 'karyawan' },
+                { id: 'user-marketing-1', fullName: 'Marketing', username: 'marketing', email: 'marketing@sultangroup.com', password: 'bWFya2V0aW5nMTIz', role: 'marketing' },
+                { id: 'user-mitra-1', fullName: 'Mitra', username: 'mitra', email: 'mitra@sultangroup.com', password: 'bWl0cmExMjM=', role: 'mitra' },
+            ];
+
             const initialCertificates = [{ id: 'cert-1', name: 'SBU Konstruksi', subMenus: [] }, { id: 'cert-2', name: 'SKK Konstruksi', subMenus: [] }, { id: 'cert-3', name: 'SBU Konsultan', subMenus: [] }];
             const initialAdminTitles = { users: 'Daftar Pengguna', certificates: 'Daftar Sertifikat', marketing: 'Manajemen Marketing', submissions: 'Data Input Pengguna', mySubmissions: 'Data Input Saya', transactions: 'Entri Transaksi Saya', financialReport: 'Laporan Keuangan Saya' };
             const initialSbuKonstruksiData = [{ id: 'p3sm-id', name: 'P3SM' }, { id: 'gapeknas-id', name: 'GAPEKNAS' }];
@@ -418,6 +422,8 @@
             const initialUserSubmissions = [{ id: 'sub-1', companyName: 'PT. Maju Bersama', marketingName: 'Hidayatullah', inputDate: '2025-08-01', submittedById: 'user-admin-1', certificateType: 'SBU Konstruksi', sbuType: 'konstruksi', selectedSub: { id: 'p3sm-id', name: 'P3SM' }, selectedKlasifikasi: { id: 'konstruksi-umum-gedung', name: 'UMUM BANGUNAN GEDUNG' }, selectedSubKlasifikasi: 'Sub 1', selectedKualifikasi: { id: 'p3sm-kual-1', name: 'Kecil (K) BUJKN', biaya: 315000 }, selectedBiayaLainnya: null, biayaSetorKantor: 750000, keuntungan: 435000 }, { id: 'sub-2', companyName: 'CV. Jaya Abadi', marketingName: 'Nuzul Arifin', inputDate: '2025-08-03', submittedById: 'user-admin-1', certificateType: 'SBU Konstruksi', sbuType: 'konstruksi', selectedSub: { id: 'gapeknas-id', name: 'GAPEKNAS' }, selectedKlasifikasi: { id: 'konstruksi-umum-sipil', name: 'UMUM BANGUNAN SIPIL' }, selectedSubKlasifikasi: 'Sub A', selectedKualifikasi: { id: 'gpk-kual-1', name: 'Kualifikasi GAPEKNAS 1', biaya: 500000 }, selectedBiayaLainnya: null, biayaSetorKantor: 1000000, keuntungan: 500000 }, { id: 'sub-5', companyName: 'PT. Konsultan Hebat', marketingName: 'Hidayatullah', inputDate: '2025-08-08', submittedById: 'user-admin-1', certificateType: 'SBU Konsultan', sbuType: 'konsultan', selectedSub: { id: 'inkindo-id', name: 'INKINDO' }, selectedKlasifikasi: { id: 'konsultan-rekayasa', name: 'Layanan Jasa Inspeksi Rekayasa' }, selectedSubKlasifikasi: 'Sub Konsultan 1', selectedKualifikasi: { id: 'konsultan-kual-1', name: 'Kualifikasi Konsultan Kecil', biaya: 400000 }, selectedBiayaLainnya: null, biayaSetorKantor: 800000, keuntungan: 400000 }];
             const initialTransactions = [{ id: 'tran-1', transactionDate: '2025-08-05', transactionName: 'kas operasional', cost: 25000, transactionType: 'Keluar', submittedById: 'user-admin-1', proof: 'bukti-kas.pdf' }, { id: 'tran-2', transactionDate: '2025-08-01', transactionName: 'tabungan ruko', cost: 5000000, transactionType: 'Tabungan', submittedById: 'user-admin-1', proof: null }, { id: 'tran-3', transactionDate: '2025-08-02', transactionName: 'Beli ATK', cost: 150000, transactionType: 'Keluar', submittedById: 'user-admin-1', proof: null }];
             
+            appState.loggedInUser = loadFromStorage('sulthan-group-loggedInUser', null);
+            appState.users = loadFromStorage('sulthan-group-users', initialUsers);
             appState.certificates = loadFromStorage('sulthan-group-certificates', initialCertificates);
             appState.marketingNames = loadFromStorage('sulthan-group-marketing-names', initialMarketingNames);
             appState.adminTitles = loadFromStorage('sulthan-group-admin-titles', initialAdminTitles);
@@ -462,29 +468,20 @@
             }
         };
 
-        const handleLogin = async (e) => {
+        const handleLogin = (e) => {
             e.preventDefault();
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            try {
-                const response = await fetch(`${API_BASE_URL}/login.php`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: username, password: btoa(password) })
-                });
-
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message || 'Login gagal');
-                
-                appState.loggedInUser = result;
-                saveToStorage('sulthan-group-loggedInUser', result);
+            const userFound = appState.users.find(u => u.username === username);
+            
+            if (userFound && password === atob(userFound.password)) {
+                appState.loggedInUser = userFound;
+                saveToStorage('sulthan-group-loggedInUser', userFound);
                 showMessage('Login Berhasil!', 'success');
-                await initializeData();
                 renderApp();
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
-                console.error("Login error details:", error);
+            } else {
+                showMessage('Nama Pengguna atau Kata Sandi Salah!', 'error');
             }
         };
 
@@ -492,12 +489,21 @@
             appState.loggedInUser = null;
             localStorage.removeItem('sulthan-group-loggedInUser');
             appState.activeTab = 'dashboard';
-            // Muat ulang halaman untuk membersihkan state
-            window.location.reload();
+            renderApp();
         };
 
         const renderSidebar = (navItems) => {
             const sidebar = document.getElementById('sidebar');
+            
+            if (appState.openSidebarMenu === null) {
+                 for (const item of navItems) {
+                    if (item.subMenus?.some(sub => sub.tabName === appState.activeTab)) {
+                        appState.openSidebarMenu = item.tabName;
+                        break;
+                    }
+                }
+            }
+            
             sidebar.innerHTML = `
                 <h2 class="px-4 pt-2 pb-4 text-2xl font-bold">Sulthan Group</h2>
                 ${navItems.map(item => `
@@ -529,23 +535,24 @@
                 `).join('')}
             `;
 
-            sidebar.querySelectorAll('.sidebar-btn, .sidebar-submenu-btn').forEach(btn => {
+            sidebar.querySelectorAll('.sidebar-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tabName = btn.dataset.tab;
-                    const navItem = navItems.find(i => i.tabName === tabName) || navItems.flatMap(i => i.subMenus || []).find(s => s.tabName === tabName);
-                    
-                    const parentItem = navItems.find(i => i.subMenus?.some(s => s.tabName === tabName));
-                    if (parentItem) {
-                         appState.openSidebarMenu = parentItem.tabName;
-                    }
-
-                    if (navItem && navItem.subMenus) {
+                    const item = navItems.find(i => i.tabName === tabName);
+                    if (item.subMenus) {
                         appState.openSidebarMenu = appState.openSidebarMenu === tabName ? null : tabName;
                         renderSidebar(navItems);
                     } else {
                         appState.activeTab = tabName;
-                        renderApp();
+                        handleBackToPortal();
                     }
+                });
+            });
+
+            sidebar.querySelectorAll('.sidebar-submenu-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    appState.activeTab = btn.dataset.tab;
+                    handleBackToPortal();
                 });
             });
         };
@@ -578,44 +585,264 @@
                     <div class="space-y-8">
                 `;
                 if (appState.activeTab === 'sertifikat') {
-                    contentHtml += renderAdminSection('certificates', appState.adminTitles.certificates, "Fitur ini sedang dalam migrasi.", true, null);
+                    contentHtml += renderAdminSection('certificates', appState.adminTitles.certificates, renderCertificateTable(), true, 'openCertificateModal()');
+                    contentHtml += renderAdminSection('marketing', appState.adminTitles.marketing, renderMarketingTable(), true, 'openMarketingModal()');
+                    contentHtml += renderAdminSection('submissions', appState.adminTitles.submissions, renderSubmissionTable(appState.userSubmissions), true, null);
                 } else if (appState.activeTab === 'user') {
                     contentHtml += renderAdminSection('users', appState.adminTitles.users, renderUserTable(), true, 'openUserModal()');
-                } else if (appState.activeTab === 'entriTransaksi' || appState.activeTab === 'laporanKeuangan') {
-                    contentHtml += renderAdminSection('keuangan', 'Keuangan', "Fitur ini sedang dalam migrasi.", true, null);
+                } else if (appState.activeTab === 'entriTransaksi') {
+                    contentHtml += renderAdminSection('transactions', 'Semua Transaksi', renderTransactionTable(appState.transactions), true, 'openTransactionModal()');
+                } else if (appState.activeTab === 'laporanKeuangan') {
+                    contentHtml += renderAdminSection('financialReport', 'Laporan Keuangan Global', renderTransactionTable(appState.transactions), true, null);
+                } else if (appState.activeTab === 'inputSertifikat') {
+                    if (appState.isCertificateFormVisible && appState.editingSubmission) {
+                        const cert = appState.selectedCertificateForForm;
+                        const submissionToEdit = appState.editingSubmission;
+                        if (cert && ['cert-1', 'cert-2', 'cert-3'].includes(cert.id)) {
+                            contentHtml += `<div class="bg-white p-6 rounded-2xl shadow-md">${renderSbuUserForm(submissionToEdit, cert)}</div>`;
+                        } else if (cert) {
+                            contentHtml += `<div class="bg-white p-6 rounded-2xl shadow-md">${renderSimpleCertForm(submissionToEdit, cert)}</div>`;
+                        }
+                    }
                 }
                 contentHtml += `</div>`;
             }
             
             mainContent.innerHTML = contentHtml;
             document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+            attachTableEventListeners();
+            attachAdminSectionEventListeners();
+            if (appState.activeTab === 'dashboard') {
+                attachDashboardEventListeners();
+            }
+            if (appState.activeTab === 'settings') {
+                attachSettingsEventListeners();
+            }
+            if (appState.isCertificateFormVisible) {
+                attachSbuUserFormListeners();
+            }
         };
 
         const renderUserDashboard = () => {
-             const mainContent = document.getElementById('main-content');
-             // ... (implementasi lengkap untuk user dashboard bisa ditambahkan di sini)
-            mainContent.innerHTML = `
-                <div class="flex justify-between items-center mb-8">
-                    <h1 class="text-4xl font-bold text-gray-800">Portal Pengguna</h1>
-                    <button id="logout-btn" class="bg-white border border-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg shadow-sm hover:bg-gray-100 transition duration-300">Keluar</button>
-                </div>
-                <div class="bg-white p-6 rounded-2xl shadow-md">
-                    Selamat datang, ${appState.loggedInUser.fullName}! Fitur untuk peran Anda akan segera hadir.
-                </div>
-            `;
-            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            const mainContent = document.getElementById('main-content');
+            const navItems = [
+                { tabName: 'dashboard', label: 'Dashboard', icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>' },
+                {
+                    tabName: 'sertifikat', label: 'Sertifikat', icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>',
+                    subMenus: [ { tabName: 'inputSertifikat', label: 'Portal Sertifikat' }, { tabName: 'dataInput', label: 'Data Sertifikat' } ]
+                },
+                {
+                    tabName: 'keuangan', label: 'Keuangan', icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>',
+                    subMenus: [ { tabName: 'entriTransaksi', label: 'Entri Transaksi' }, { tabName: 'laporanKeuangan', label: 'Laporan Keuangan' } ]
+                },
+                { tabName: 'settings', label: 'Pengaturan', icon: '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>' },
+            ];
+            renderSidebar(navItems);
+
+            let contentHtml = '';
+            if (appState.activeTab === 'dashboard') {
+                contentHtml = renderDashboardPage(true);
+            } else if (appState.activeTab === 'settings') {
+                contentHtml = renderSettingsPage();
+            } else {
+                contentHtml = `
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-4xl font-bold text-gray-800">Portal Pengguna</h1>
+                        <button id="logout-btn" class="bg-white border border-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg shadow-sm hover:bg-gray-100 transition duration-300">Keluar</button>
+                    </div>
+                    <div class="space-y-8">
+                `;
+                if (appState.activeTab === 'inputSertifikat') {
+                    if (appState.isCertificateFormVisible) {
+                        const cert = appState.selectedCertificateForForm;
+                        const submissionToEdit = appState.editingSubmission;
+                        if (['cert-1', 'cert-2', 'cert-3'].includes(cert.id)) {
+                            contentHtml += `<div class="bg-white p-6 rounded-2xl shadow-md">${renderSbuUserForm(submissionToEdit, cert)}</div>`;
+                        } else {
+                            contentHtml += `<div class="bg-white p-6 rounded-2xl shadow-md">${renderSimpleCertForm(submissionToEdit, cert)}</div>`;
+                        }
+                    } else {
+                        contentHtml += `<div class="bg-white p-6 rounded-2xl shadow-md">${renderCertificatePortal()}</div>`;
+                    }
+                } else if (appState.activeTab === 'dataInput') {
+                    const mySubmissions = appState.userSubmissions.filter(s => s.submittedById === appState.loggedInUser.id);
+                    contentHtml += renderAdminSection('mySubmissions', appState.adminTitles.mySubmissions, renderSubmissionTable(mySubmissions), true, null);
+                } else if (appState.activeTab === 'entriTransaksi') {
+                    const myTransactions = appState.transactions.filter(t => t.submittedById === appState.loggedInUser.id);
+                    contentHtml += renderAdminSection('transactions', appState.adminTitles.transactions, renderTransactionTable(myTransactions), true, 'openTransactionModal()');
+                } else if (appState.activeTab === 'laporanKeuangan') {
+                    const myTransactions = appState.transactions.filter(t => t.submittedById === appState.loggedInUser.id);
+                    contentHtml += renderAdminSection('financialReport', appState.adminTitles.financialReport, renderTransactionTable(myTransactions), true, null);
+                }
+                contentHtml += `</div>`;
+            }
+
+            mainContent.innerHTML = contentHtml;
+            document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+            attachTableEventListeners();
+            attachAdminSectionEventListeners();
+            if (appState.activeTab === 'dashboard') {
+                attachDashboardEventListeners();
+            }
+            if (appState.activeTab === 'settings') {
+                attachSettingsEventListeners();
+            }
+            if (appState.isCertificateFormVisible) {
+                attachSbuUserFormListeners();
+            }
         };
 
         const renderDashboardPage = (isUserView) => {
             return `
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h1 class="text-3xl font-bold text-gray-800">Dasbor Operasional</h1>
-                        <p class="text-gray-500 mt-1">Selamat datang, ${appState.loggedInUser.fullName}!</p>
+                        <h1 class="text-3xl font-bold text-gray-800">Dasbor Operasional Sulthan Group</h1>
+                        <p class="text-gray-500 mt-1">Analisis kinerja sertifikasi dan keuangan secara real-time.</p>
                     </div>
                     <button id="logout-btn" class="bg-white border border-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg shadow-sm hover:bg-gray-100 transition duration-300">Keluar</button>
                 </div>
-                 <div class="bg-white p-6 rounded-2xl shadow-md text-center text-gray-500 mt-6">Fitur Dashboard sedang dalam migrasi ke database.</div>
+                ${renderDashboardTabs(isUserView)}
+            `;
+        };
+
+        window.setDashboardTab = (tabId) => {
+            appState.dashboardTab = tabId;
+            if (appState.loggedInUser.role === 'Super admin') {
+                renderAdminDashboard();
+            } else {
+                renderUserDashboard();
+            }
+        };
+
+        const renderDashboardTabs = (isUserView) => {
+            const tabButton = (label, tabId) => {
+                const isActive = appState.dashboardTab === tabId;
+                return `<button onclick="setDashboardTab('${tabId}')" class="px-3 py-2 font-semibold transition-colors duration-300 text-sm md:text-base ${isActive ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-indigo-600'}">${label}</button>`;
+            };
+
+            let tabContent = '';
+            if (appState.dashboardTab === 'ringkasan') {
+                tabContent = renderRingkasanView(isUserView);
+            } else if (appState.dashboardTab === 'analisisSertifikat') {
+                tabContent = `<div class="bg-white p-6 rounded-2xl shadow-md text-center text-gray-500 mt-6">Fitur Analisis Sertifikat akan segera hadir.</div>`;
+            } else if (appState.dashboardTab === 'laporanKeuangan') {
+                tabContent = `<div class="bg-white p-6 rounded-2xl shadow-md text-center text-gray-500 mt-6">Fitur Laporan Keuangan akan segera hadir.</div>`;
+            }
+
+            return `
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-2 md:space-x-4">
+                        ${tabButton('Ringkasan', 'ringkasan')}
+                        ${tabButton('Analisis Sertifikat', 'analisisSertifikat')}
+                        ${tabButton('Laporan Keuangan', 'laporanKeuangan')}
+                    </nav>
+                </div>
+                <div id="dashboard-tab-content" class="mt-6 space-y-6">
+                    ${tabContent}
+                </div>
+            `;
+        };
+        
+        const getFilteredData = () => {
+            const { userSubmissions, transactions } = appState;
+            const { type, month, year } = appState.dashboardFilter;
+            const now = new Date();
+
+            if (type === 'all') {
+                return { filteredSubmissions: userSubmissions, filteredTransactions: transactions };
+            }
+
+            let startDate, endDate;
+
+            if (type === 'range') {
+                startDate = new Date(year, month - 1, 1);
+                endDate = new Date(year, month, 1);
+            } else {
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                if (type === 'last3') startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                if (type === 'last6') startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                if (type === 'last12') startDate = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1);
+            }
+            
+            const filteredSubmissions = userSubmissions.filter(s => {
+                if (!s.inputDate) return false;
+                const subDate = new Date(s.inputDate);
+                return subDate >= startDate && subDate < endDate;
+            });
+
+            const filteredTransactions = transactions.filter(t => {
+                if (!t.transactionDate) return false;
+                const transDate = new Date(t.transactionDate);
+                return transDate >= startDate && transDate < endDate;
+            });
+
+            return { filteredSubmissions, filteredTransactions };
+        };
+
+        const renderRingkasanView = (isUserView) => {
+            const { filteredSubmissions, filteredTransactions } = getFilteredData();
+            
+            const userSubmissions = isUserView ? filteredSubmissions.filter(s => s.submittedById === appState.loggedInUser.id) : filteredSubmissions;
+            const userTransactions = isUserView ? filteredTransactions.filter(t => t.submittedById === appState.loggedInUser.id) : filteredTransactions;
+            
+            const totalKeuntungan = userSubmissions.reduce((acc, sub) => acc + (sub.keuntungan || 0), 0);
+            const totalPemasukan = userSubmissions.reduce((acc, sub) => acc + (sub.biayaSetorKantor || 0), 0);
+            const totalSertifikat = userSubmissions.length;
+            const totalPengeluaran = userTransactions
+                .filter(t => t.transactionType === 'Keluar')
+                .reduce((acc, t) => acc + (t.cost || 0), 0);
+
+            const statCard = (title, value, icon, colorClass) => `
+                <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">${title}</p>
+                        <p class="text-2xl font-bold text-gray-800 mt-1">${value}</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center ${colorClass}">
+                        ${icon}
+                    </div>
+                </div>
+            `;
+            
+            return `
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800">Ringkasan Kinerja Utama</h2>
+                    <p class="text-gray-500 mt-1">Gunakan filter di bawah untuk melihat data pada periode tertentu.</p>
+                </div>
+                
+                <div class="bg-white border border-gray-200 p-4 rounded-2xl shadow-sm mb-6 flex flex-wrap items-center gap-4">
+                    <div class="flex-grow sm:flex-grow-0">
+                        <label for="filter-month" class="text-sm font-medium text-gray-700 mr-2">Bulan:</label>
+                        <select id="filter-month" class="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+                    <div class="flex-grow sm:flex-grow-0">
+                        <label for="filter-year" class="text-sm font-medium text-gray-700 mr-2">Tahun:</label>
+                        <input type="number" id="filter-year" class="w-24 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button data-filter="last3" class="filter-btn px-3 py-2 text-sm font-semibold rounded-lg">3 Bulan</button>
+                        <button data-filter="last6" class="filter-btn px-3 py-2 text-sm font-semibold rounded-lg">6 Bulan</button>
+                        <button data-filter="last12" class="filter-btn px-3 py-2 text-sm font-semibold rounded-lg">1 Tahun</button>
+                        <button data-filter="all" class="filter-btn px-3 py-2 text-sm font-semibold rounded-lg">Semua</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    ${statCard('Total Keuntungan', formatCurrency(totalKeuntungan), '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-800" viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.5 2.5 0 004 0V7.151c.22.071.412.164.567.267C13.863 7.84 14 8.252 14 8.684V14.5A2.5 2.5 0 0111.5 17h-3A2.5 2.5 0 016 14.5V8.684c0-.432.137-.844.433-1.266zM4 6h12v2.5a2.5 2.5 0 01-2.5 2.5H6.5A2.5 2.5 0 014 8.5V6z" /></svg>', 'bg-green-100')}
+                    ${statCard('Total Pemasukan', formatCurrency(totalPemasukan), '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-800" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>', 'bg-indigo-100')}
+                    ${statCard('Total Sertifikat', totalSertifikat, '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-800" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" /></svg>', 'bg-yellow-100')}
+                    ${statCard('Total Pengeluaran', formatCurrency(totalPengeluaran), '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-800" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>', 'bg-red-100')}
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <div class="lg:col-span-3" id="line-chart-container">
+                        <!-- Line chart will be rendered here -->
+                    </div>
+                    <div class="lg:col-span-2" id="donut-chart-container">
+                        <!-- Donut chart will be rendered here -->
+                    </div>
+                </div>
             `;
         };
         
@@ -625,6 +852,9 @@
                     <div class="flex justify-between items-center mb-6">
                         <div class="flex items-center gap-2 flex-grow">
                              <h2 class="text-2xl font-semibold text-gray-800">${title}</h2>
+                             <button type="button" data-key="${key}" class="title-edit-btn text-gray-400 hover:text-indigo-600 transition p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                             </button>
                         </div>
                         ${addAction ? `<button onclick="${addAction}" class="bg-indigo-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:bg-indigo-700">Tambah</button>` : ''}
                     </div>
@@ -634,11 +864,8 @@
                 </div>
             `;
         };
-
+        
         const renderUserTable = () => {
-            if (!appState.users || appState.users.length === 0) {
-                return `<p class="text-center text-gray-500 py-4">Tidak ada data pengguna di database.</p>`;
-            }
             return `
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -654,7 +881,7 @@
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.fullName}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.username}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeClass(user.role)}">${user.role}</span></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeClass(user.role)}">${user.role}</span></td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button onclick="openUserModal('${user.id}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
                                     <button onclick="deleteUser('${user.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
@@ -665,8 +892,238 @@
                 </table>
             `;
         };
+
+        const renderCertificateTable = () => {
+             return `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Sertifikat</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sub-menu</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${appState.certificates.map(cert => {
+                            const isAdvancedMenu = ['cert-1', 'cert-2', 'cert-3'].includes(cert.id);
+                            let sbuType;
+                            if (cert.id === 'cert-1') sbuType = 'konstruksi';
+                            else if (cert.id === 'cert-2') sbuType = 'skk';
+                            else if (cert.id === 'cert-3') sbuType = 'konsultan';
+
+                            const editText = isAdvancedMenu ? 'Edit Menu Bertingkat' : 'Edit Sub-menu';
+                            const editAction = isAdvancedMenu ? `openSbuAdminModal('${sbuType}')` : `openCertificateModal('${cert.id}')`;
+
+                            return `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cert.name}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 max-w-sm truncate">${isAdvancedMenu ? 'Menu Bertingkat (dikelola terpisah)' : cert.subMenus.join(', ')}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                     <div class="relative inline-block text-left">
+                                        <button onclick="toggleDropdown(event, 'dropdown-${cert.id}')" class="inline-flex justify-center w-full rounded-xl border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">Aksi <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></button>
+                                        <div id="dropdown-${cert.id}" class="hidden origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                                            <div class="py-1">
+                                                <button onclick="${editAction}" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">${editText}</button>
+                                            </div>
+                                            <div class="py-1">
+                                                <button onclick="deleteCertificate('${cert.id}')" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Hapus</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
+            `;
+        };
+
+        const renderMarketingTable = () => {
+             return `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Marketing</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${appState.marketingNames.map(m => `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${m.name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onclick="openMarketingModal('${m.id}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                    <button onclick="deleteMarketingName('${m.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        };
+
+        const renderSubmissionTable = (submissions, searchTerm = '') => {
+            const filteredSubmissions = submissions.filter(sub => 
+                sub.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                sub.marketingName.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            return `
+                <div class="mb-4">
+                    <input type="text" id="submission-search" oninput="handleSubmissionSearch(event)" value="${searchTerm}" placeholder="Cari perusahaan atau marketing..." class="w-full sm:w-1/3 pl-10 pr-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pemilik Sertifikat</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marketing</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tgl Input</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis Sertifikat</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Asosiasi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Klasifikasi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sub-Klasifikasi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kualifikasi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biaya Kualifikasi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biaya Setor Kantor</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keuntungan</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${filteredSubmissions.map(sub => `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${capitalizeWords(sub.companyName)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.marketingName}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDisplayDate(sub.inputDate)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.certificateType || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.selectedSub?.name || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.selectedKlasifikasi?.name || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.selectedSubKlasifikasi || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${sub.selectedKualifikasi?.name || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(sub.selectedKualifikasi?.biaya) || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(sub.biayaSetorKantor) || '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-700">${formatCurrency(sub.keuntungan)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onclick="showSubmissionFormForEdit('${sub.id}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                    <button onclick="deleteSubmission('${sub.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                </div>
+            `;
+        };
+
+        const renderTransactionTable = (transactions, searchTerm = '') => {
+             const filteredTransactions = transactions.filter(t => 
+                t.transactionName.toLowerCase().includes(searchTerm.toLowerCase())
+             );
+             return `
+                <div class="mb-4">
+                    <input type="text" id="transaction-search" oninput="handleTransactionSearch(event)" value="${searchTerm}" placeholder="Cari nama transaksi..." class="w-full sm:w-1/3 pl-10 pr-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Transaksi</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Biaya</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bukti</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${filteredTransactions.map(t => `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDisplayDate(t.transactionDate)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${t.transactionName}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${t.transactionType === 'Tabungan' ? 'bg-green-100 text-green-800' : t.transactionType === 'Kas' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}">${t.transactionType}</span></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">${formatCurrency(t.cost)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${t.proof ? `<a href="#" class="text-indigo-600 hover:underline">${t.proof}</a>` : '-'}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onclick="openTransactionModal('${t.id}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                    <button onclick="deleteTransaction('${t.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                </div>
+            `;
+        };
+
+        const renderCertificatePortal = () => {
+            return `
+                <div class="text-gray-800">
+                    <h2 class="text-2xl font-semibold mb-4">Portal Sertifikat</h2>
+                    <div class="space-y-4">
+                        <p class="text-lg">Pilih menu sertifikat untuk memulai:</p>
+                        ${appState.certificates.map(cert => `
+                            <button onclick="handleCertificateSelection('${cert.id}')" class="w-full text-left bg-indigo-100 text-indigo-800 font-semibold py-3 px-6 rounded-xl transition hover:bg-indigo-200">
+                                ${cert.name}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        };
         
-        // --- MANAJEMEN MODAL PENGGUNA (TERHUBUNG KE DATABASE) ---
+        // --- EVENT LISTENERS & HANDLERS ---
+        document.getElementById('login-form').addEventListener('submit', handleLogin);
+        
+        window.handleSubmissionSearch = (event) => {
+            const searchTerm = event.target.value;
+            const tableContainer = event.target.closest('.bg-white').querySelector('.overflow-x-auto');
+            const submissions = appState.loggedInUser.role === 'Super admin' 
+                ? appState.userSubmissions 
+                : appState.userSubmissions.filter(s => s.submittedById === appState.loggedInUser.id);
+            tableContainer.innerHTML = renderSubmissionTable(submissions, searchTerm);
+        };
+
+        window.handleTransactionSearch = (event) => {
+            const searchTerm = event.target.value;
+            const tableContainer = event.target.closest('.bg-white').querySelector('.overflow-x-auto');
+            const transactions = appState.transactions.filter(t => t.submittedById === appState.loggedInUser.id);
+            tableContainer.innerHTML = renderTransactionTable(transactions, searchTerm);
+        };
+
+        const attachTableEventListeners = () => {};
+
+        const attachAdminSectionEventListeners = () => {
+            document.querySelectorAll('.title-edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const key = e.currentTarget.dataset.key;
+                    const titleElement = e.currentTarget.previousElementSibling;
+                    const currentTitle = titleElement.textContent;
+                    titleElement.innerHTML = `<input type="text" class="text-2xl font-semibold text-gray-800 bg-indigo-50 p-1 rounded-md outline-none w-full" value="${currentTitle}">`;
+                    const input = titleElement.querySelector('input');
+                    input.focus();
+                    input.select();
+                    
+                    const saveTitle = () => {
+                        const newTitle = input.value.trim();
+                        if (newTitle && newTitle !== appState.adminTitles[key]) {
+                            appState.adminTitles[key] = newTitle;
+                            saveToStorage('sulthan-group-admin-titles', appState.adminTitles);
+                            showMessage('Judul berhasil diperbarui!', 'success');
+                        }
+                        renderApp();
+                    };
+
+                    input.addEventListener('blur', saveTitle);
+                    input.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') saveTitle();
+                        if (event.key === 'Escape') renderApp();
+                    });
+                });
+            });
+        };
+
+        // --- MANAJEMEN MODAL (NON-FORM) ---
         window.openUserModal = (userId = null) => {
             const modal = document.getElementById('user-modal');
             const title = document.getElementById('user-modal-title');
@@ -681,7 +1138,7 @@
                 document.getElementById('user-username').value = user.username;
                 document.getElementById('user-email').value = user.email;
                 document.getElementById('user-role').value = user.role;
-                document.getElementById('user-password').placeholder = 'Biarkan kosong untuk tidak mengubah';
+                document.getElementById('user-password').placeholder = 'Biarkan kosong untuk password lama';
                 document.getElementById('user-password').required = false;
             } else {
                 title.textContent = 'Tambah Pengguna Baru';
@@ -692,8 +1149,7 @@
             modal.classList.add('show');
         };
         window.closeUserModal = () => document.getElementById('user-modal').classList.remove('show');
-        
-        const handleUserFormSubmit = async (e) => {
+        document.getElementById('user-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const userData = {
                 id: document.getElementById('user-id').value,
@@ -703,55 +1159,122 @@
                 role: document.getElementById('user-role').value,
                 password: document.getElementById('user-password').value,
             };
-
-            if (userData.password) {
-                userData.password = btoa(userData.password);
-            } else {
-                delete userData.password;
-            }
-
-            const isEdit = !!userData.id;
-            const url = isEdit ? `${API_BASE_URL}/users.php` : `${API_BASE_URL}/users.php`;
-            const method = isEdit ? 'PUT' : 'POST';
-
-            try {
-                const response = await fetch(url, {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                
-                showMessage(result.message, 'success');
-                closeUserModal();
-                await initializeData();
-                renderApp();
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
-            }
-        };
-
-        window.deleteUser = (userId) => {
-            openConfirmationModal(async () => {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/users.php?id=${userId}`, {
-                        method: 'DELETE'
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-
-                    showMessage(result.message, 'success');
-                    await initializeData();
-                    renderApp();
-                } catch (error) {
-                    showMessage(`Error: ${error.message}`, 'error');
+            
+            if (userData.id) {
+                const userIndex = appState.users.findIndex(u => u.id === userData.id);
+                if (userData.password) {
+                    appState.users[userIndex].password = btoa(userData.password);
                 }
-            }, 'Apakah Anda yakin ingin menghapus pengguna ini?');
+                appState.users[userIndex] = { ...appState.users[userIndex], ...userData, password: appState.users[userIndex].password };
+                showMessage('Pengguna berhasil diperbarui!', 'success');
+            } else {
+                appState.users.push({ ...userData, id: generateId(), password: btoa(userData.password) });
+                showMessage('Pengguna baru berhasil ditambahkan!', 'success');
+            }
+            saveToStorage('sulthan-group-users', appState.users);
+            closeUserModal();
+            renderApp();
+        });
+        window.deleteUser = (userId) => {
+            openConfirmationModal(() => {
+                appState.users = appState.users.filter(u => u.id !== userId);
+                saveToStorage('sulthan-group-users', appState.users);
+                showMessage('Pengguna berhasil dihapus!', 'success');
+                renderApp();
+            });
         };
 
-        // --- MODAL KONFIRMASI ---
-        window.openConfirmationModal = (action, message = 'Apakah Anda yakin?') => {
+        window.openCertificateModal = (certId = null) => {
+            const modal = document.getElementById('certificate-modal');
+            const title = document.getElementById('certificate-modal-title');
+            const form = document.getElementById('certificate-form');
+            form.reset();
+
+            if (certId) {
+                const cert = appState.certificates.find(c => c.id === certId);
+                title.textContent = 'Edit Sertifikat';
+                document.getElementById('certificate-id').value = cert.id;
+                document.getElementById('certificate-name').value = cert.name;
+                document.getElementById('certificate-subMenus').value = cert.subMenus.join('\n');
+            } else {
+                title.textContent = 'Tambah Sertifikat Baru';
+                document.getElementById('certificate-id').value = '';
+            }
+            modal.classList.add('show');
+        };
+        window.closeCertificateModal = () => document.getElementById('certificate-modal').classList.remove('show');
+        document.getElementById('certificate-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const certData = {
+                id: document.getElementById('certificate-id').value,
+                name: document.getElementById('certificate-name').value,
+                subMenus: document.getElementById('certificate-subMenus').value.split('\n').filter(s => s.trim() !== '')
+            };
+            if (certData.id) {
+                appState.certificates = appState.certificates.map(c => c.id === certData.id ? certData : c);
+                showMessage('Sertifikat berhasil diperbarui!', 'success');
+            } else {
+                appState.certificates.push({ ...certData, id: generateId() });
+                showMessage('Sertifikat baru berhasil ditambahkan!', 'success');
+            }
+            saveToStorage('sulthan-group-certificates', appState.certificates);
+            closeCertificateModal();
+            renderApp();
+        });
+        window.deleteCertificate = (certId) => {
+            openConfirmationModal(() => {
+                appState.certificates = appState.certificates.filter(c => c.id !== certId);
+                saveToStorage('sulthan-group-certificates', appState.certificates);
+                showMessage('Sertifikat berhasil dihapus!', 'success');
+                renderApp();
+            });
+        };
+
+        window.openMarketingModal = (marketingId = null) => {
+            const modal = document.getElementById('marketing-modal');
+            const title = document.getElementById('marketing-modal-title');
+            const form = document.getElementById('marketing-form');
+            form.reset();
+
+            if (marketingId) {
+                const mkt = appState.marketingNames.find(m => m.id === marketingId);
+                title.textContent = 'Edit Nama Marketing';
+                document.getElementById('marketing-id').value = mkt.id;
+                document.getElementById('marketing-name').value = mkt.name;
+            } else {
+                title.textContent = 'Tambah Nama Marketing';
+                document.getElementById('marketing-id').value = '';
+            }
+            modal.classList.add('show');
+        };
+        window.closeMarketingModal = () => document.getElementById('marketing-modal').classList.remove('show');
+        document.getElementById('marketing-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const mktData = {
+                id: document.getElementById('marketing-id').value,
+                name: document.getElementById('marketing-name').value
+            };
+            if (mktData.id) {
+                appState.marketingNames = appState.marketingNames.map(m => m.id === mktData.id ? mktData : m);
+                showMessage('Nama marketing diperbarui!', 'success');
+            } else {
+                appState.marketingNames.push({ ...mktData, id: generateId() });
+                showMessage('Nama marketing ditambahkan!', 'success');
+            }
+            saveToStorage('sulthan-group-marketing-names', appState.marketingNames);
+            closeMarketingModal();
+            renderApp();
+        });
+        window.deleteMarketingName = (marketingId) => {
+            openConfirmationModal(() => {
+                appState.marketingNames = appState.marketingNames.filter(m => m.id !== marketingId);
+                saveToStorage('sulthan-group-marketing-names', appState.marketingNames);
+                showMessage('Nama marketing dihapus!', 'success');
+                renderApp();
+            });
+        };
+
+        window.openConfirmationModal = (action, message = 'Apakah Anda yakin ingin melanjutkan?') => {
             document.getElementById('confirmation-message').textContent = message;
             appState.actionToConfirm = action;
             document.getElementById('confirmation-modal').classList.add('show');
@@ -761,26 +1284,1189 @@
             document.getElementById('confirmation-modal').classList.remove('show');
         };
         document.getElementById('confirm-action-btn').addEventListener('click', () => {
-            if (appState.actionToConfirm) appState.actionToConfirm();
+            if (appState.actionToConfirm) {
+                appState.actionToConfirm();
+            }
             closeConfirmationModal();
         });
 
-        // --- UTILITAS PESAN ---
+        // --- MODAL SBU ADMIN ---
+        window.openSbuAdminModal = (sbuType) => { // sbuType: 'konstruksi', 'konsultan', or 'skk'
+            appState.sbuAdmin.type = sbuType;
+            if (sbuType === 'konstruksi') {
+                appState.sbuAdmin.tempData = JSON.parse(JSON.stringify(appState.sbuKonstruksiData));
+                appState.sbuAdmin.tempKlasifikasiData = JSON.parse(JSON.stringify(appState.konstruksiKlasifikasiData));
+            } else if (sbuType === 'konsultan') {
+                appState.sbuAdmin.tempData = JSON.parse(JSON.stringify(appState.sbuKonsultanData));
+                appState.sbuAdmin.tempKlasifikasiData = JSON.parse(JSON.stringify(appState.konsultanKlasifikasiData));
+            } else if (sbuType === 'skk') {
+                appState.sbuAdmin.tempData = JSON.parse(JSON.stringify(appState.skkKonstruksiData));
+                appState.sbuAdmin.tempKlasifikasiData = JSON.parse(JSON.stringify(appState.skkKlasifikasiData));
+            }
+
+            appState.sbuAdmin.selectedSub = null;
+            appState.sbuAdmin.selectedKlasifikasi = null;
+            appState.sbuAdmin.activeTab = 'klasifikasi';
+            
+            renderSbuAdminModalContent();
+            document.getElementById('sbu-admin-modal').classList.add('show');
+        };
+        window.closeSbuAdminModal = () => document.getElementById('sbu-admin-modal').classList.remove('show');
+        
+        const renderSbuAdminModalContent = () => {
+            const modal = document.getElementById('sbu-admin-modal');
+            const contentContainer = document.getElementById('sbu-admin-content');
+            const modalTitle = document.getElementById('sbu-admin-modal-title');
+
+            const { type, tempKlasifikasiData, selectedSub, selectedKlasifikasi, activeTab, tempData } = appState.sbuAdmin;
+            
+            let titleText = 'Kelola Menu ';
+            if (type === 'konstruksi') titleText += 'SBU Konstruksi';
+            else if (type === 'konsultan') titleText += 'SBU Konsultan';
+            else if (type === 'skk') titleText += 'SKK Konstruksi';
+            modalTitle.textContent = titleText;
+
+            const context = selectedSub?.name?.toUpperCase() || '';
+            let sbuTypeForBiaya = type;
+            if (type === 'konstruksi') {
+                 sbuTypeForBiaya = context.includes('GAPEKNAS') ? 'gapeknas' : 'p3sm';
+            }
+            
+            const tabButton = (label, tabName) => `<button type="button" onclick="setSbuAdminTab('${tabName}')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${activeTab === tabName ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">${label}</button>`;
+
+            let tabContent = '';
+            if (activeTab === 'klasifikasi') {
+                tabContent = `
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-gray-700 font-medium">Klasifikasi</label>
+                            ${selectedKlasifikasi ? `<button type="button" onclick="handleSbuAdminDelete('klasifikasi')" class="text-red-500 hover:text-red-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.728-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg></button>` : ''}
+                        </div>
+                        <select id="sbu-admin-klasifikasi-select" class="w-full px-4 py-3 border rounded-xl">
+                            <option value="">-- Pilih Klasifikasi --</option>
+                            ${tempKlasifikasiData.map(k => `<option value="${k.id}" ${selectedKlasifikasi?.id === k.id ? 'selected' : ''}>${k.name}</option>`).join('')}
+                        </select>
+                        <div class="flex mt-2 space-x-2">
+                            <input id="sbu-admin-new-klasifikasi" type="text" placeholder="Nama klasifikasi baru" class="flex-grow px-3 py-2 border rounded-xl">
+                            <button type="button" onclick="handleSbuAdminAdd('klasifikasi')" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">Tambah</button>
+                        </div>
+                        ${selectedKlasifikasi ? `
+                            <div class="mt-4">
+                                <label class="block text-gray-700 font-medium mb-2">Sub-klasifikasi (satu per baris)</label>
+                                <textarea id="sbu-admin-subklasifikasi-text" class="w-full h-32 p-3 border rounded-xl mb-2">${selectedKlasifikasi.subKlasifikasi.join('\n')}</textarea>
+                                <button type="button" onclick="handleSbuAdminUpdateSubKlasifikasi()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold">Simpan Sub-klasifikasi</button>
+                            </div>
+                            ${type === 'skk' ? `
+                                <div class="mt-4">
+                                    <label class="block text-gray-700 font-medium mb-2">Kualifikasi (satu per baris)</label>
+                                    <textarea id="sbu-admin-kualifikasi-text" class="w-full h-32 p-3 border rounded-xl mb-2">${(selectedKlasifikasi.kualifikasi || []).join('\n')}</textarea>
+                                    <button type="button" onclick="handleSbuAdminUpdateKualifikasi()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold">Simpan Kualifikasi</button>
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block text-gray-700 font-medium mb-2">Sub Bidang (satu per baris)</label>
+                                    <textarea id="sbu-admin-subbidang-text" class="w-full h-32 p-3 border rounded-xl mb-2">${(selectedKlasifikasi.subBidang || []).join('\n')}</textarea>
+                                    <button type="button" onclick="handleSbuAdminUpdateSubBidang()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold">Simpan Sub Bidang</button>
+                                </div>
+                            ` : ''}
+                        ` : ''}
+                    </div>
+                `;
+            } else if (activeTab === 'kualifikasi' || activeTab === 'biayaSetor' || activeTab === 'biayaLainnya') {
+                const { data, openModal } = getBiayaDataSource(type, sbuTypeForBiaya, activeTab);
+                const typeMap = { kualifikasi: type === 'skk' ? 'Jenjang' : 'Kualifikasi', biayaSetor: 'Biaya Setor', biayaLainnya: 'Biaya Lainnya' };
+                const currentTypeTitle = typeMap[activeTab];
+
+                tabContent = `
+                    <p class="text-sm text-gray-500 mb-2">Data ${currentTypeTitle} untuk <strong>${selectedSub?.name || (['konsultan', 'skk'].includes(type) ? titleText.replace('Kelola Menu ', '') : 'Asosiasi')}</strong>.</p>
+                    ${selectedSub || ['konsultan', 'skk'].includes(type) ? `
+                        <div class="flex justify-end mb-2">
+                            <button type="button" onclick="${openModal}" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">Tambah ${currentTypeTitle}</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama & Biaya</th><th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th></tr></thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${data.map(item => `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <div class="font-medium">${item.name}</div>
+                                                <div class="text-gray-500">Biaya: ${formatCurrency(item.biaya)}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onclick="openBiayaModal('${item.id}', '${type}', '${sbuTypeForBiaya}', '${activeTab}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                                                <button onclick="deleteBiayaItem('${item.id}', '${type}', '${sbuTypeForBiaya}', '${activeTab}')" class="text-red-600 hover:text-red-900">Hapus</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : `<p class="text-center text-gray-500 p-4">Pilih Asosiasi terlebih dahulu untuk mengelola ${currentTypeTitle}.</p>`}
+                `;
+            }
+
+            contentContainer.innerHTML = `
+                ${type !== 'konsultan' ? `
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-gray-700 font-medium">Asosiasi</label>
+                        ${selectedSub ? `<button type="button" onclick="handleSbuAdminDelete('sub')" class="text-red-500 hover:text-red-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.728-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg></button>` : ''}
+                    </div>
+                    <select id="sbu-admin-sub-select" class="w-full px-4 py-3 border rounded-xl">
+                        <option value="">-- Pilih Asosiasi --</option>
+                        ${tempData.map(s => `<option value="${s.id}" ${selectedSub?.id === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+                    </select>
+                    <div class="flex mt-2 space-x-2">
+                        <input id="sbu-admin-new-sub" type="text" placeholder="Nama asosiasi baru" class="flex-grow px-3 py-2 border rounded-xl">
+                        <button type="button" onclick="handleSbuAdminAdd('sub')" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">Tambah</button>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="mt-4">
+                    <div class="border-b border-gray-200"><nav class="-mb-px flex space-x-2">${tabButton('Klasifikasi', 'klasifikasi')}${tabButton(type === 'skk' ? 'Jenjang' : 'Kualifikasi', 'kualifikasi')}${tabButton('Biaya Setor', 'biayaSetor')}${tabButton('Biaya Lainnya', 'biayaLainnya')}</nav></div>
+                    <div class="pt-4">${tabContent}</div>
+                </div>
+            `;
+            
+            document.getElementById('sbu-admin-sub-select')?.addEventListener('change', (e) => {
+                const sub = tempData.find(s => s.id === e.target.value) || null;
+                appState.sbuAdmin.selectedSub = sub;
+                renderSbuAdminModalContent();
+            });
+            const klasifikasiSelect = document.getElementById('sbu-admin-klasifikasi-select');
+            if (klasifikasiSelect) {
+                klasifikasiSelect.addEventListener('change', (e) => {
+                    const klasifikasi = tempKlasifikasiData.find(k => k.id === e.target.value) || null;
+                    appState.sbuAdmin.selectedKlasifikasi = klasifikasi;
+                    renderSbuAdminModalContent();
+                });
+            }
+        };
+        
+        window.setSbuAdminTab = (tabName) => { appState.sbuAdmin.activeTab = tabName; renderSbuAdminModalContent(); };
+        
+        window.handleSbuAdminAdd = (type) => {
+            const { sbuAdmin } = appState;
+            if (type === 'sub') {
+                const input = document.getElementById('sbu-admin-new-sub');
+                const name = input.value.trim();
+                if (name) {
+                    sbuAdmin.tempData.push({ id: generateId(), name: name });
+                    input.value = '';
+                    renderSbuAdminModalContent();
+                }
+            } else if (type === 'klasifikasi') {
+                const input = document.getElementById('sbu-admin-new-klasifikasi');
+                const name = input.value.trim();
+                if (name) {
+                    sbuAdmin.tempKlasifikasiData.push({ id: generateId(), name: name, subKlasifikasi: [], kualifikasi: [], subBidang: [] });
+                    input.value = '';
+                    renderSbuAdminModalContent();
+                }
+            }
+        };
+        
+        window.handleSbuAdminDelete = (type) => {
+            const { sbuAdmin } = appState;
+            if (type === 'sub' && sbuAdmin.selectedSub) {
+                sbuAdmin.tempData = sbuAdmin.tempData.filter(s => s.id !== sbuAdmin.selectedSub.id);
+                sbuAdmin.selectedSub = null;
+                renderSbuAdminModalContent();
+            } else if (type === 'klasifikasi' && sbuAdmin.selectedKlasifikasi) {
+                sbuAdmin.tempKlasifikasiData = sbuAdmin.tempKlasifikasiData.filter(k => k.id !== sbuAdmin.selectedKlasifikasi.id);
+                sbuAdmin.selectedKlasifikasi = null;
+                renderSbuAdminModalContent();
+            }
+        };
+        
+        window.handleSbuAdminUpdateSubKlasifikasi = () => {
+            const { sbuAdmin } = appState;
+            if (!sbuAdmin.selectedKlasifikasi) return;
+            const textarea = document.getElementById('sbu-admin-subklasifikasi-text');
+            const subKlasifikasi = textarea.value.split('\n').map(s => s.trim()).filter(s => s);
+            const klasifikasiIndex = sbuAdmin.tempKlasifikasiData.findIndex(k => k.id === sbuAdmin.selectedKlasifikasi.id);
+            if (klasifikasiIndex > -1) {
+                sbuAdmin.tempKlasifikasiData[klasifikasiIndex].subKlasifikasi = subKlasifikasi;
+                showMessage('Sub-klasifikasi diperbarui sementara.', 'success');
+            }
+        };
+
+        window.handleSbuAdminUpdateKualifikasi = () => {
+            const { sbuAdmin } = appState;
+            if (!sbuAdmin.selectedKlasifikasi) return;
+            const textarea = document.getElementById('sbu-admin-kualifikasi-text');
+            const kualifikasi = textarea.value.split('\n').map(s => s.trim()).filter(s => s);
+            const klasifikasiIndex = sbuAdmin.tempKlasifikasiData.findIndex(k => k.id === sbuAdmin.selectedKlasifikasi.id);
+            if (klasifikasiIndex > -1) {
+                sbuAdmin.tempKlasifikasiData[klasifikasiIndex].kualifikasi = kualifikasi;
+                showMessage('Kualifikasi diperbarui sementara.', 'success');
+            }
+        };
+
+        window.handleSbuAdminUpdateSubBidang = () => {
+            const { sbuAdmin } = appState;
+            if (!sbuAdmin.selectedKlasifikasi) return;
+            const textarea = document.getElementById('sbu-admin-subbidang-text');
+            const subBidang = textarea.value.split('\n').map(s => s.trim()).filter(s => s);
+            const klasifikasiIndex = sbuAdmin.tempKlasifikasiData.findIndex(k => k.id === sbuAdmin.selectedKlasifikasi.id);
+            if (klasifikasiIndex > -1) {
+                sbuAdmin.tempKlasifikasiData[klasifikasiIndex].subBidang = subBidang;
+                showMessage('Sub Bidang diperbarui sementara.', 'success');
+            }
+        };
+        
+        window.handleSaveSbuAdminChanges = () => {
+            openConfirmationModal(() => {
+                const { type, tempData, tempKlasifikasiData } = appState.sbuAdmin;
+                if (type === 'konstruksi') {
+                    appState.sbuKonstruksiData = JSON.parse(JSON.stringify(tempData));
+                    appState.konstruksiKlasifikasiData = JSON.parse(JSON.stringify(tempKlasifikasiData));
+                    saveToStorage('sulthan-group-sbu-konstruksi-data', appState.sbuKonstruksiData);
+                    saveToStorage('sulthan-group-konstruksi-klasifikasi', appState.konstruksiKlasifikasiData);
+                } else if (type === 'konsultan') {
+                    appState.sbuKonsultanData = JSON.parse(JSON.stringify(tempData));
+                    appState.konsultanKlasifikasiData = JSON.parse(JSON.stringify(tempKlasifikasiData));
+                    saveToStorage('sulthan-group-sbu-konsultan-data', appState.sbuKonsultanData);
+                    saveToStorage('sulthan-group-konsultan-klasifikasi', appState.konsultanKlasifikasiData);
+                } else if (type === 'skk') {
+                    appState.skkKonstruksiData = JSON.parse(JSON.stringify(tempData));
+                    appState.skkKlasifikasiData = JSON.parse(JSON.stringify(tempKlasifikasiData));
+                    saveToStorage('sulthan-group-skk-konstruksi-data', appState.skkKonstruksiData);
+                    saveToStorage('sulthan-group-skk-klasifikasi', appState.skkKlasifikasiData);
+                }
+                showMessage('Semua perubahan menu telah disimpan!', 'success');
+                closeSbuAdminModal();
+                renderApp();
+            });
+        };
+
+        const getBiayaDataSource = (sbuType, context, biayaType) => {
+            let data, key, openModal;
+            if (sbuType === 'konstruksi') {
+                if (context === 'p3sm') {
+                    if (biayaType === 'kualifikasi') { data = appState.p3smKualifikasiData; key = 'sulthan-group-p3sm-kualifikasi'; }
+                    if (biayaType === 'biayaSetor') { data = appState.p3smBiayaSetorData; key = 'sulthan-group-p3sm-biaya-setor'; }
+                    if (biayaType === 'biayaLainnya') { data = appState.p3smBiayaLainnyaData; key = 'sulthan-group-p3sm-biaya-lainnya'; }
+                } else if (context === 'gapeknas') {
+                    if (biayaType === 'kualifikasi') { data = appState.gapeknasKualifikasiData; key = 'sulthan-group-gapeknas-kualifikasi'; }
+                    if (biayaType === 'biayaSetor') { data = appState.gapeknasBiayaSetorData; key = 'sulthan-group-gapeknas-biaya-setor'; }
+                    if (biayaType === 'biayaLainnya') { data = appState.gapeknasBiayaLainnyaData; key = 'sulthan-group-gapeknas-biaya-lainnya'; }
+                }
+            } else if (sbuType === 'konsultan') {
+                if (biayaType === 'kualifikasi') { data = appState.konsultanKualifikasiData; key = 'sulthan-group-konsultan-kualifikasi'; }
+                if (biayaType === 'biayaSetor') { data = appState.konsultanBiayaSetorData; key = 'sulthan-group-konsultan-biaya-setor'; }
+                if (biayaType === 'biayaLainnya') { data = appState.konsultanBiayaLainnyaData; key = 'sulthan-group-konsultan-biaya-lainnya'; }
+            } else if (sbuType === 'skk') {
+                if (biayaType === 'kualifikasi') { data = appState.skkKualifikasiData; key = 'sulthan-group-skk-kualifikasi'; }
+                if (biayaType === 'biayaSetor') { data = appState.skkBiayaSetorData; key = 'sulthan-group-skk-biaya-setor'; }
+                if (biayaType === 'biayaLainnya') { data = appState.skkBiayaLainnyaData; key = 'sulthan-group-skk-biaya-lainnya'; }
+            }
+            openModal = `openBiayaModal(null, '${sbuType}', '${context}', '${biayaType}')`;
+            return { data: data || [], key, openModal };
+        };
+
+        window.openBiayaModal = (itemId = null, sbuType, context, type) => {
+            const modal = document.getElementById('biaya-modal');
+            const title = document.getElementById('biaya-modal-title');
+            const form = document.getElementById('biaya-form');
+            form.reset();
+
+            const typeMap = { kualifikasi: sbuType === 'skk' ? 'Jenjang' : 'Kualifikasi', biayaSetor: 'Biaya Setor', biayaLainnya: 'Biaya Lainnya' };
+            let contextName = '';
+            if (sbuType === 'konsultan') contextName = 'SBU Konsultan';
+            else if (sbuType === 'skk') contextName = 'SKK Konstruksi';
+            else contextName = (context === 'p3sm' ? 'P3SM' : 'GAPEKNAS');
+
+            document.getElementById('biaya-sbu-type').value = sbuType;
+            document.getElementById('biaya-context').value = context;
+            document.getElementById('biaya-type').value = type;
+
+            if (itemId) {
+                const { data } = getBiayaDataSource(sbuType, context, type);
+                const item = data.find(i => i.id === itemId);
+                title.textContent = `Edit ${typeMap[type]} (${contextName})`;
+                document.getElementById('biaya-id').value = item.id;
+                document.getElementById('biaya-name').value = item.name;
+                document.getElementById('biaya-cost').value = item.biaya;
+            } else {
+                title.textContent = `Tambah ${typeMap[type]} Baru (${contextName})`;
+                document.getElementById('biaya-id').value = '';
+            }
+            modal.classList.add('show');
+        };
+        window.closeBiayaModal = () => document.getElementById('biaya-modal').classList.remove('show');
+        
+        document.getElementById('biaya-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('biaya-id').value;
+            const sbuType = document.getElementById('biaya-sbu-type').value;
+            const context = document.getElementById('biaya-context').value;
+            const type = document.getElementById('biaya-type').value;
+            const name = document.getElementById('biaya-name').value;
+            const cost = Number(document.getElementById('biaya-cost').value);
+
+            const { data, key } = getBiayaDataSource(sbuType, context, type);
+            if (!key) return;
+
+            if (id) {
+                const itemIndex = data.findIndex(i => i.id === id);
+                if (itemIndex > -1) {
+                    data[itemIndex] = { ...data[itemIndex], name, biaya: cost };
+                }
+            } else {
+                data.push({ id: generateId(), name, biaya: cost });
+            }
+            
+            saveToStorage(key, data);
+            showMessage('Data biaya berhasil disimpan!', 'success');
+            closeBiayaModal();
+            renderSbuAdminModalContent();
+        });
+        
+        window.deleteBiayaItem = (itemId, sbuType, context, type) => {
+            openConfirmationModal(() => {
+                const { data, key } = getBiayaDataSource(sbuType, context, type);
+                if (!key) return;
+
+                const updatedData = data.filter(i => i.id !== itemId);
+                
+                if (sbuType === 'konstruksi') {
+                    if (context === 'p3sm') {
+                        if (type === 'kualifikasi') appState.p3smKualifikasiData = updatedData;
+                        if (type === 'biayaSetor') appState.p3smBiayaSetorData = updatedData;
+                        if (type === 'biayaLainnya') appState.p3smBiayaLainnyaData = updatedData;
+                    } else if (context === 'gapeknas') {
+                        if (type === 'kualifikasi') appState.gapeknasKualifikasiData = updatedData;
+                        if (type === 'biayaSetor') appState.gapeknasBiayaSetorData = updatedData;
+                        if (type === 'biayaLainnya') appState.gapeknasBiayaLainnyaData = updatedData;
+                    }
+                } else if (sbuType === 'konsultan') {
+                    if (type === 'kualifikasi') appState.konsultanKualifikasiData = updatedData;
+                    if (type === 'biayaSetor') appState.konsultanBiayaSetorData = updatedData;
+                    if (type === 'biayaLainnya') appState.konsultanBiayaLainnyaData = updatedData;
+                } else if (sbuType === 'skk') {
+                    if (type === 'kualifikasi') appState.skkKualifikasiData = updatedData;
+                    if (type === 'biayaSetor') appState.skkBiayaSetorData = updatedData;
+                    if (type === 'biayaLainnya') appState.skkBiayaLainnyaData = updatedData;
+                }
+
+                saveToStorage(key, updatedData);
+                showMessage('Item biaya berhasil dihapus!', 'success');
+                renderSbuAdminModalContent();
+            });
+        };
+
+        // --- ALUR INPUT SERTIFIKAT PENGGUNA (NON-MODAL) ---
+        window.handleCertificateSelection = (certId) => {
+            appState.selectedCertificateForForm = appState.certificates.find(c => c.id === certId);
+            appState.isCertificateFormVisible = true;
+            renderApp();
+        };
+
+        window.handleBackToPortal = () => {
+            if (appState.editingSubmission) {
+                if (appState.loggedInUser.role === 'Super admin') {
+                    appState.activeTab = 'sertifikat';
+                } else {
+                    appState.activeTab = 'dataInput';
+                }
+            }
+            
+            appState.isCertificateFormVisible = false;
+            appState.selectedCertificateForForm = null;
+            appState.editingSubmission = null;
+            renderApp();
+        };
+
+        window.showSubmissionFormForEdit = (submissionId) => {
+            const submission = appState.userSubmissions.find(s => s.id === submissionId);
+            const certificate = appState.certificates.find(c => c.name === submission.certificateType);
+            if (!certificate) {
+                showMessage('Tipe sertifikat tidak ditemukan.', 'error');
+                return;
+            }
+            appState.activeTab = 'inputSertifikat';
+            appState.isCertificateFormVisible = true;
+            appState.selectedCertificateForForm = certificate;
+            appState.editingSubmission = submission;
+            renderApp();
+        };
+        
+        const renderSbuUserForm = (submission, certificate) => {
+            const isEditMode = !!submission;
+            const isSkk = certificate.id === 'cert-2';
+            let sbuType;
+            if (certificate.id === 'cert-1') sbuType = 'konstruksi';
+            else if (certificate.id === 'cert-2') sbuType = 'skk';
+            else if (certificate.id === 'cert-3') sbuType = 'konsultan';
+
+            const initialData = submission || {};
+            const name = initialData.companyName || '';
+            let prefix = 'PT.';
+            let companyName = name;
+            
+            if (!isSkk) {
+                if (name.startsWith('PT. ')) { prefix = 'PT.'; companyName = name.substring(4); } 
+                else if (name.startsWith('CV. ')) { prefix = 'CV.'; companyName = name.substring(4); }
+            }
+
+            let sbuDataSource;
+            if (sbuType === 'konstruksi') sbuDataSource = appState.sbuKonstruksiData;
+            else if (sbuType === 'skk') sbuDataSource = appState.skkKonstruksiData;
+            else if (sbuType === 'konsultan') sbuDataSource = appState.sbuKonsultanData;
+
+            const nameInputHtml = isSkk ? `
+                <div>
+                    <label class="block text-gray-700 font-medium mb-1">Nama Pemegang Sertifikat</label>
+                    <input type="text" id="submission-company-name" class="w-full px-5 py-3 border rounded-xl" value="${name}" required>
+                </div>
+            ` : `
+                <div>
+                    <label class="block text-gray-700 font-medium mb-1">Nama Perusahaan</label>
+                    <div class="flex items-center gap-2">
+                        <select id="submission-company-prefix" class="px-4 py-3 border rounded-xl bg-gray-50">
+                            <option ${prefix === 'PT.' ? 'selected' : ''}>PT.</option>
+                            <option ${prefix === 'CV.' ? 'selected' : ''}>CV.</option>
+                        </select>
+                        <input type="text" id="submission-company-name" class="w-full px-5 py-3 border rounded-xl" value="${companyName}" required>
+                    </div>
+                </div>
+            `;
+
+            return `
+                <div class="text-gray-800">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold">${isEditMode ? "Edit Data Input" : certificate.name}</h2>
+                        <button type="button" onclick="handleBackToPortal()" class="bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-xl">Kembali ke Portal</button>
+                    </div>
+                    <form id="sbu-user-form" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                        <input type="hidden" id="submission-id-input" value="${initialData.id || ''}">
+                        <input type="hidden" id="submission-cert-type-input" value="${certificate.name}">
+                        <input type="hidden" id="submission-sbu-type-input" value="${sbuType}">
+                        ${nameInputHtml}
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-1">Nama Marketing</label>
+                            <select id="submission-marketing-name" class="w-full px-5 py-3 border rounded-xl" required>
+                                <option value="">-- Pilih Nama Marketing --</option>
+                                ${appState.marketingNames.map(m => `<option value="${m.name}" ${initialData.marketingName === m.name ? 'selected' : ''}>${m.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-1">Tanggal Input</label>
+                            <input type="date" id="submission-input-date" class="w-full px-5 py-3 border rounded-xl" value="${initialData.inputDate || ''}" required>
+                        </div>
+                        <div class="flex space-x-4" id="submission-sub-buttons">
+                            ${sbuDataSource.map(sub => `<button type="button" data-sub-id="${sub.id}" class="sub-btn font-semibold py-2 px-4 rounded-xl ${initialData.selectedSub?.id === sub.id ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}">${sub.name}</button>`).join('')}
+                        </div>
+                        <div id="submission-dynamic-content"></div>
+                        <div class="flex justify-end gap-2 mt-6 pt-4 border-t">
+                            <button type="button" onclick="handleBackToPortal()" class="px-6 py-3 rounded-xl font-semibold bg-gray-200 text-gray-700">Batal</button>
+                            <button type="submit" class="px-6 py-3 rounded-xl font-semibold bg-indigo-600 text-white">Simpan</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+        };
+        
+        const renderSimpleCertForm = (submission, certificate) => {
+             return `
+                <div class="text-gray-800">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold">${certificate.name}</h2>
+                        <button type="button" onclick="handleBackToPortal()" class="bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-xl">Kembali ke Portal</button>
+                    </div>
+                    <div class="text-center p-8 text-gray-500">
+                        <p class="text-lg">Fungsionalitas untuk sertifikat ini masih dalam pengembangan.</p>
+                        <p>Silakan gunakan menu SBU Konstruksi atau SBU Konsultan.</p>
+                    </div>
+                </div>
+             `;
+        };
+
+        const attachSbuUserFormListeners = () => {
+            const form = document.getElementById('sbu-user-form');
+            if (!form) return;
+
+            form.addEventListener('submit', handleSaveSubmission);
+            
+            const initialSubmission = appState.editingSubmission || {};
+            appState.sbuUserFormState = { ...JSON.parse(JSON.stringify(initialSubmission)) };
+            
+            const sbuType = document.getElementById('submission-sbu-type-input').value;
+            let klasifikasiDataSource;
+            if (sbuType === 'konstruksi') klasifikasiDataSource = appState.konstruksiKlasifikasiData;
+            else if (sbuType === 'skk') klasifikasiDataSource = appState.skkKlasifikasiData;
+            else if (sbuType === 'konsultan') klasifikasiDataSource = appState.konsultanKlasifikasiData;
+
+            if (appState.sbuUserFormState.selectedKlasifikasi && appState.sbuUserFormState.selectedKlasifikasi.id) {
+                const fullKlasifikasi = klasifikasiDataSource.find(k => k.id === appState.sbuUserFormState.selectedKlasifikasi.id);
+                if (fullKlasifikasi) {
+                    appState.sbuUserFormState.selectedKlasifikasi = fullKlasifikasi;
+                }
+            }
+
+            if (appState.sbuUserFormState.selectedSub) {
+                 updateSbuUserFormDynamicContent();
+            }
+
+            form.querySelectorAll('.sub-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    form.querySelectorAll('.sub-btn').forEach(b => {
+                        b.classList.remove('bg-indigo-600', 'text-white');
+                        b.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    e.target.classList.add('bg-indigo-600', 'text-white');
+                    e.target.classList.remove('bg-gray-200', 'text-gray-700');
+                    
+                    const subId = e.target.dataset.subId;
+                    let sbuDataSource;
+                    if (sbuType === 'konstruksi') sbuDataSource = appState.sbuKonstruksiData;
+                    else if (sbuType === 'skk') sbuDataSource = appState.skkKonstruksiData;
+                    else if (sbuType === 'konsultan') sbuDataSource = appState.sbuKonsultanData;
+                    
+                    appState.sbuUserFormState = {
+                        selectedSub: sbuDataSource.find(s => s.id === subId)
+                    };
+                    updateSbuUserFormDynamicContent();
+                });
+            });
+        };
+
+        const updateSbuUserFormDynamicContent = () => {
+            const container = document.getElementById('submission-dynamic-content');
+            if (!container) return;
+            
+            const { selectedSub, selectedKlasifikasi, selectedSubKlasifikasi, selectedKualifikasi, selectedBiayaLainnya } = appState.sbuUserFormState;
+            const sbuType = document.getElementById('submission-sbu-type-input').value;
+            
+            if (!selectedSub && (sbuType === 'konstruksi' || sbuType === 'skk')) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let klasifikasiDataSource, kualifikasiDataSource, biayaSetorDataSource, biayaLainnyaDataSource;
+
+            if (sbuType === 'konstruksi') {
+                if (!selectedSub) { container.innerHTML = ''; return; }
+                const context = selectedSub.name === 'GAPEKNAS' ? 'gapeknas' : 'p3sm';
+                klasifikasiDataSource = appState.konstruksiKlasifikasiData;
+                kualifikasiDataSource = context === 'gapeknas' ? appState.gapeknasKualifikasiData : appState.p3smKualifikasiData;
+                biayaSetorDataSource = context === 'gapeknas' ? appState.gapeknasBiayaSetorData : appState.p3smBiayaSetorData;
+                biayaLainnyaDataSource = context === 'gapeknas' ? appState.gapeknasBiayaLainnyaData : appState.p3smBiayaLainnyaData;
+            } else if (sbuType === 'skk') {
+                 if (!selectedSub) { container.innerHTML = ''; return; }
+                klasifikasiDataSource = appState.skkKlasifikasiData;
+                kualifikasiDataSource = appState.skkKualifikasiData;
+                biayaSetorDataSource = appState.skkBiayaSetorData;
+                biayaLainnyaDataSource = appState.skkBiayaLainnyaData;
+            } else { // konsultan
+                klasifikasiDataSource = appState.konsultanKlasifikasiData;
+                kualifikasiDataSource = appState.konsultanKualifikasiData;
+                biayaSetorDataSource = appState.konsultanBiayaSetorData;
+                biayaLainnyaDataSource = appState.konsultanBiayaLainnyaData;
+            }
+
+            const biayaKualifikasiValue = selectedKualifikasi?.biaya || 0;
+            const biayaSetorKantorValue = selectedKualifikasi ? (biayaSetorDataSource.find(b => b.name === selectedKualifikasi.name)?.biaya || 0) : 0;
+            const biayaLainnyaValue = selectedBiayaLainnya?.biaya || 0;
+            const keuntunganValue = biayaSetorKantorValue - biayaKualifikasiValue - biayaLainnyaValue;
+
+            let html = `
+                <div class="mt-4 p-4 bg-gray-100 rounded-xl">
+                    <h3 class="text-xl font-semibold mb-2 text-indigo-800">Klasifikasi ${selectedSub?.name || ''}</h3>
+                    <select id="submission-klasifikasi" class="w-full px-4 py-2 rounded-xl border">
+                        <option value="">-- Pilih Klasifikasi --</option>
+                        ${klasifikasiDataSource.map(k => `<option value="${k.id}" ${selectedKlasifikasi?.id === k.id ? 'selected' : ''}>${k.name}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            
+            if (selectedKlasifikasi) {
+                html += `
+                    <div class="mt-4 p-4 bg-gray-200 rounded-xl">
+                        <h3 class="text-xl font-semibold mb-2 text-indigo-900">Sub-Klasifikasi ${selectedKlasifikasi.name}</h3>
+                        <select id="submission-sub-klasifikasi" class="w-full px-4 py-2 rounded-xl border">
+                            <option value="">-- Pilih Sub-Klasifikasi --</option>
+                            ${selectedKlasifikasi.subKlasifikasi.map(s => `<option value="${s}" ${selectedSubKlasifikasi === s ? 'selected' : ''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            if (selectedSubKlasifikasi) {
+                html += `
+                    <div class="mt-4 p-4 bg-gray-100 rounded-xl">
+                        <h3 class="text-xl font-semibold mb-2 text-indigo-800">Kualifikasi</h3>
+                        <select id="submission-kualifikasi" class="w-full px-4 py-2 rounded-xl border">
+                            <option value="">-- Pilih Kualifikasi --</option>
+                            ${kualifikasiDataSource.map(k => `<option value="${k.id}" ${selectedKualifikasi?.id === k.id ? 'selected' : ''}>${k.name}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            if (selectedKualifikasi) {
+                html += `
+                    <div class="mt-4 p-4 bg-indigo-50 rounded-xl space-y-3">
+                        <h3 class="text-lg font-semibold text-indigo-800 border-b pb-2 mb-3">Rincian Biaya</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Biaya Kualifikasi</label>
+                                <div class="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold">${formatCurrency(biayaKualifikasiValue)}</div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Biaya Setor Kantor</label>
+                                <div class="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold">${formatCurrency(biayaSetorKantorValue)}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Biaya Lainnya (Opsional)</label>
+                            <select id="submission-biaya-lainnya" class="w-full px-4 py-2 rounded-xl border">
+                                <option value="">-- Tidak Ada --</option>
+                                ${biayaLainnyaDataSource.map(b => `<option value="${b.id}" ${selectedBiayaLainnya?.id === b.id ? 'selected' : ''}>${b.name} - ${formatCurrency(b.biaya)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="pt-3 mt-3 border-t">
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Keuntungan</label>
+                            <div class="w-full px-4 py-3 rounded-xl font-bold text-lg text-center ${keuntunganValue >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${formatCurrency(keuntunganValue)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+            
+            const klasifikasiSelect = document.getElementById('submission-klasifikasi');
+            if (klasifikasiSelect) klasifikasiSelect.addEventListener('change', (e) => {
+                const klasifikasiId = e.target.value;
+                appState.sbuUserFormState.selectedKlasifikasi = klasifikasiDataSource.find(k => k.id === klasifikasiId);
+                appState.sbuUserFormState.selectedSubKlasifikasi = null;
+                appState.sbuUserFormState.selectedKualifikasi = null;
+                appState.sbuUserFormState.selectedBiayaLainnya = null;
+                updateSbuUserFormDynamicContent();
+            });
+
+            const subKlasifikasiSelect = document.getElementById('submission-sub-klasifikasi');
+            if (subKlasifikasiSelect) subKlasifikasiSelect.addEventListener('change', (e) => {
+                appState.sbuUserFormState.selectedSubKlasifikasi = e.target.value;
+                appState.sbuUserFormState.selectedKualifikasi = null;
+                appState.sbuUserFormState.selectedBiayaLainnya = null;
+                updateSbuUserFormDynamicContent();
+            });
+
+            const kualifikasiSelect = document.getElementById('submission-kualifikasi');
+            if (kualifikasiSelect) kualifikasiSelect.addEventListener('change', (e) => {
+                const kualifikasiId = e.target.value;
+                appState.sbuUserFormState.selectedKualifikasi = kualifikasiDataSource.find(k => k.id === kualifikasiId);
+                appState.sbuUserFormState.selectedBiayaLainnya = null;
+                updateSbuUserFormDynamicContent();
+            });
+
+            const biayaLainnyaSelect = document.getElementById('submission-biaya-lainnya');
+            if (biayaLainnyaSelect) biayaLainnyaSelect.addEventListener('change', (e) => {
+                const biayaId = e.target.value;
+                appState.sbuUserFormState.selectedBiayaLainnya = biayaLainnyaDataSource.find(b => b.id === biayaId);
+                updateSbuUserFormDynamicContent();
+            });
+        };
+
+        const handleSaveSubmission = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const { selectedSub, selectedKlasifikasi, selectedSubKlasifikasi, selectedKualifikasi, selectedBiayaLainnya } = appState.sbuUserFormState;
+            const certificateType = form.querySelector('#submission-cert-type-input').value;
+            const isSkk = certificateType === 'SKK Konstruksi';
+            const sbuType = form.querySelector('#submission-sbu-type-input').value;
+
+            let biayaSetorDataSource;
+            if (sbuType === 'konstruksi') {
+                const context = selectedSub?.name === 'GAPEKNAS' ? 'gapeknas' : 'p3sm';
+                biayaSetorDataSource = context === 'gapeknas' ? appState.gapeknasBiayaSetorData : appState.p3smBiayaSetorData;
+            } else if (sbuType === 'skk') {
+                biayaSetorDataSource = appState.skkBiayaSetorData;
+            } else {
+                biayaSetorDataSource = appState.konsultanBiayaSetorData;
+            }
+
+            const biayaKualifikasiValue = selectedKualifikasi?.biaya || 0;
+            const biayaSetorKantorValue = selectedKualifikasi ? (biayaSetorDataSource.find(b => b.name === selectedKualifikasi.name)?.biaya || 0) : 0;
+            const biayaLainnyaValue = selectedBiayaLainnya?.biaya || 0;
+            const keuntunganValue = biayaSetorKantorValue - biayaKualifikasiValue - biayaLainnyaValue;
+            
+            let finalCompanyName = '';
+            if (isSkk) {
+                finalCompanyName = form.querySelector('#submission-company-name').value;
+            } else {
+                finalCompanyName = `${form.querySelector('#submission-company-prefix').value} ${form.querySelector('#submission-company-name').value}`;
+            }
+
+            const submissionData = {
+                id: form.querySelector('#submission-id-input').value,
+                companyName: finalCompanyName,
+                marketingName: form.querySelector('#submission-marketing-name').value,
+                inputDate: form.querySelector('#submission-input-date').value,
+                submittedById: appState.loggedInUser.id,
+                certificateType: certificateType,
+                sbuType: sbuType,
+                selectedSub,
+                selectedKlasifikasi,
+                selectedSubKlasifikasi,
+                selectedKualifikasi,
+                selectedBiayaLainnya,
+                biayaSetorKantor: biayaSetorKantorValue,
+                keuntungan: keuntunganValue
+            };
+
+            if (!submissionData.companyName.trim() || !submissionData.marketingName || !submissionData.inputDate || !submissionData.selectedKlasifikasi || !submissionData.selectedSubKlasifikasi || !submissionData.selectedKualifikasi) {
+                showMessage('Harap lengkapi semua pilihan!', 'error');
+                return;
+            }
+             if ((sbuType === 'konstruksi' || sbuType === 'skk') && !submissionData.selectedSub) {
+                showMessage('Harap pilih Asosiasi!', 'error');
+                return;
+            }
+
+            if (submissionData.id) {
+                appState.userSubmissions = appState.userSubmissions.map(s => s.id === submissionData.id ? submissionData : s);
+                showMessage('Data berhasil diperbarui!', 'success');
+            } else {
+                appState.userSubmissions.push({ ...submissionData, id: generateId() });
+                showMessage('Data baru berhasil ditambahkan!', 'success');
+            }
+            saveToStorage('sulthan-group-user-submissions', appState.userSubmissions);
+            handleBackToPortal();
+        };
+
+        window.deleteSubmission = (submissionId) => {
+            openConfirmationModal(() => {
+                appState.userSubmissions = appState.userSubmissions.filter(s => s.id !== submissionId);
+                saveToStorage('sulthan-group-user-submissions', appState.userSubmissions);
+                showMessage('Data berhasil dihapus!', 'success');
+                renderApp();
+            });
+        };
+
+        // --- TRANSACTION MODAL ---
+        window.openTransactionModal = (transactionId = null) => {
+             const modal = document.getElementById('transaction-modal');
+            const title = document.getElementById('transaction-modal-title');
+            const form = document.getElementById('transaction-form');
+            form.reset();
+
+            const transactionOptions = ['bantuan keagamaan', 'tabungan ruko', 'kas operasional', 'gaji A', 'Gaji B', 'Tabungan THR'];
+            const select = document.getElementById('transaction-name-select');
+            select.innerHTML = `<option value="">-- Pilih Nama Transaksi --</option>` + transactionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('') + `<option value="Lainnya">Lainnya</option>`;
+
+            const customNameWrapper = document.getElementById('transaction-custom-name-wrapper');
+            
+            if (transactionId) {
+                const t = appState.transactions.find(tr => tr.id === transactionId);
+                title.textContent = 'Edit Transaksi';
+                document.getElementById('transaction-id').value = t.id;
+                document.getElementById('transaction-date').value = t.transactionDate;
+                document.getElementById('transaction-cost').value = t.cost;
+                document.getElementById('transaction-type').value = t.transactionType;
+                document.getElementById('transaction-proof-display').textContent = t.proof ? `File saat ini: ${t.proof}` : '';
+
+                const isPredefined = transactionOptions.includes(t.transactionName.toLowerCase());
+                if (isPredefined) {
+                    select.value = t.transactionName.toLowerCase();
+                    customNameWrapper.classList.add('hidden');
+                } else {
+                    select.value = 'Lainnya';
+                    document.getElementById('transaction-custom-name').value = t.transactionName;
+                    customNameWrapper.classList.remove('hidden');
+                }
+            } else {
+                title.textContent = 'Tambah Transaksi Baru';
+                document.getElementById('transaction-id').value = '';
+                customNameWrapper.classList.add('hidden');
+            }
+            modal.classList.add('show');
+        };
+        window.closeTransactionModal = () => document.getElementById('transaction-modal').classList.remove('show');
+        document.getElementById('transaction-name-select').addEventListener('change', (e) => {
+            const wrapper = document.getElementById('transaction-custom-name-wrapper');
+            if (e.target.value === 'Lainnya') {
+                wrapper.classList.remove('hidden');
+            } else {
+                wrapper.classList.add('hidden');
+            }
+        });
+        document.getElementById('transaction-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const selectedName = document.getElementById('transaction-name-select').value;
+            const customName = document.getElementById('transaction-custom-name').value;
+            const finalTransactionName = selectedName === 'Lainnya' ? customName : selectedName;
+            
+            if (!finalTransactionName) {
+                showMessage('Nama transaksi tidak boleh kosong.', 'error');
+                return;
+            }
+
+            const proofFile = document.getElementById('transaction-proof-input').files[0];
+            const transactionId = document.getElementById('transaction-id').value;
+            let proofName = null;
+
+            if (proofFile) {
+                proofName = proofFile.name;
+            } else if (transactionId) {
+                const existingTransaction = appState.transactions.find(t => t.id === transactionId);
+                proofName = existingTransaction.proof;
+            }
+
+            const transactionData = {
+                id: transactionId,
+                transactionDate: document.getElementById('transaction-date').value,
+                transactionName: finalTransactionName,
+                cost: Number(document.getElementById('transaction-cost').value),
+                transactionType: document.getElementById('transaction-type').value,
+                proof: proofName,
+                submittedById: appState.loggedInUser.id,
+            };
+
+            if (transactionData.id) {
+                appState.transactions = appState.transactions.map(t => t.id === transactionData.id ? transactionData : t);
+                showMessage('Transaksi berhasil diperbarui!', 'success');
+            } else {
+                appState.transactions.push({ ...transactionData, id: generateId() });
+                showMessage('Transaksi baru berhasil ditambahkan!', 'success');
+            }
+            saveToStorage('sulthan-group-transactions', appState.transactions);
+            closeTransactionModal();
+            renderApp();
+        });
+        window.deleteTransaction = (transactionId) => {
+            openConfirmationModal(() => {
+                appState.transactions = appState.transactions.filter(t => t.id !== transactionId);
+                saveToStorage('sulthan-group-transactions', appState.transactions);
+                showMessage('Transaksi berhasil dihapus!', 'success');
+                renderApp();
+            });
+        };
+
+        // --- FUNGSI UTILITAS LAIN ---
         window.showMessage = (text, type = 'success') => {
             const container = document.getElementById('message-container');
             const messageDiv = document.createElement('div');
-            messageDiv.className = `p-4 mb-2 rounded-xl shadow-lg font-semibold text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+            messageDiv.className = `p-4 rounded-xl shadow-lg font-semibold text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
             messageDiv.textContent = text;
             container.appendChild(messageDiv);
-            setTimeout(() => messageDiv.remove(), 3000);
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
         };
         
-        // --- EVENT LISTENERS ---
-        document.getElementById('login-form').addEventListener('submit', handleLogin);
-        document.getElementById('user-form').addEventListener('submit', handleUserFormSubmit);
+        window.toggleDropdown = (event, dropdownId) => {
+            event.stopPropagation();
+            document.querySelectorAll('[id^="dropdown-"]').forEach(d => {
+                if (d.id !== dropdownId) d.classList.add('hidden');
+            });
+            document.getElementById(dropdownId).classList.toggle('hidden');
+        };
+        
+        document.addEventListener('click', () => {
+             document.querySelectorAll('[id^="dropdown-"]').forEach(d => d.classList.add('hidden'));
+        });
+        
+        // --- FUNGSI DASHBOARD & GRAFIK ---
+        const attachDashboardEventListeners = () => {
+            const { filteredSubmissions } = getFilteredData();
+            const userSubmissions = appState.loggedInUser.role === 'Super admin' ? filteredSubmissions : filteredSubmissions.filter(s => s.submittedById === appState.loggedInUser.id);
+            
+            const lineChartContainer = document.getElementById('line-chart-container');
+            if (lineChartContainer) {
+                renderLineChart(lineChartContainer, userSubmissions);
+            }
+            const donutChartContainer = document.getElementById('donut-chart-container');
+            if (donutChartContainer) {
+                renderDonutChart(donutChartContainer, userSubmissions);
+            }
+
+            const monthSelect = document.getElementById('filter-month');
+            const yearInput = document.getElementById('filter-year');
+            const filterButtons = document.querySelectorAll('.filter-btn');
+
+            const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+            if (monthSelect) {
+                monthSelect.innerHTML = months.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+                monthSelect.value = appState.dashboardFilter.month;
+            }
+
+            if (yearInput) {
+                yearInput.value = appState.dashboardFilter.year;
+            }
+            
+            const updateUI = () => {
+                if (appState.loggedInUser.role === 'Super admin') renderAdminDashboard(); else renderUserDashboard();
+            };
+
+            const updateButtonStyles = () => {
+                filterButtons.forEach(btn => {
+                    if (btn.dataset.filter === appState.dashboardFilter.type) {
+                        btn.classList.add('bg-indigo-600', 'text-white');
+                        btn.classList.remove('bg-gray-100', 'text-gray-600');
+                    } else {
+                        btn.classList.remove('bg-indigo-600', 'text-white');
+                        btn.classList.add('bg-gray-100', 'text-gray-600');
+                    }
+                });
+            };
+            updateButtonStyles();
+
+            monthSelect?.addEventListener('change', () => {
+                appState.dashboardFilter.type = 'range';
+                appState.dashboardFilter.month = parseInt(monthSelect.value);
+                updateUI();
+            });
+
+            yearInput?.addEventListener('input', () => {
+                appState.dashboardFilter.type = 'range';
+                appState.dashboardFilter.year = parseInt(yearInput.value) || new Date().getFullYear();
+                updateUI();
+            });
+
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    appState.dashboardFilter.type = btn.dataset.filter;
+                    updateUI();
+                });
+            });
+        };
+
+        const renderLineChart = (container, submissions) => {
+            const monthlyProfits = Array(12).fill(0);
+            submissions.forEach(sub => {
+                if (sub.inputDate) {
+                    const subDate = new Date(sub.inputDate);
+                    if (subDate.getFullYear() === appState.dashboardFilter.year) {
+                        const month = subDate.getMonth();
+                        monthlyProfits[month] += sub.keuntungan || 0;
+                    }
+                }
+            });
+
+            const maxProfit = Math.max(...monthlyProfits, 1);
+            const highestLabel = Math.ceil(maxProfit / 100000) * 100000 || 100000;
+            const yLabels = Array.from({length: 6}, (_, i) => Math.round(highestLabel / 5 * i));
+
+            const points = monthlyProfits.map((profit, index) => {
+                const x = (index / 11) * 100;
+                const y = 100 - (profit / highestLabel) * 100;
+                return { x, y, profit, month: new Date(2025, index).toLocaleString('id-ID', { month: 'short' }) };
+            });
+
+            const pathData = points.map((p, i) => (i === 0 ? 'M' : 'L') + `${p.x} ${p.y}`).join(' ');
+            const areaPathData = `${pathData} L ${points[points.length - 1].x} 100 L ${points[0].x} 100 Z`;
+
+            container.innerHTML = `
+                <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm h-full">
+                    <h3 class="font-semibold text-gray-800">Tren Keuntungan Bulanan</h3>
+                    <p class="text-sm text-gray-500 mb-4">Visualisasi keuntungan yang dihasilkan setiap bulan dalam periode terpilih.</p>
+                    <div class="relative w-full h-72">
+                        <svg id="line-chart-svg" class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="line-chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="rgba(99, 102, 241, 0.3)" />
+                                    <stop offset="100%" stop-color="rgba(99, 102, 241, 0)" />
+                                </linearGradient>
+                            </defs>
+                            ${yLabels.map((label, i) => `
+                                <line x1="0" y1="${100 - (i * 20)}" x2="100" y2="${100 - (i * 20)}" stroke="#e5e7eb" stroke-width="0.5" />
+                                <text x="-1" y="${100 - (i * 20)}" dy="0.3em" text-anchor="end" font-size="3" fill="#6b7280">${formatCurrency(label).replace(/\s*Rp\s*/, 'Rp ')}</text>
+                            `).join('')}
+                            ${points.map((p, i) => `<text x="${p.x}" y="105" text-anchor="middle" font-size="3" fill="#6b7280">${p.month}</text>`).join('')}
+                            <path d="${areaPathData}" fill="url(#line-chart-gradient)" />
+                            <path d="${pathData}" stroke="#6366f1" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
+                            ${points.map((p, i) => `<circle class="chart-point" cx="${p.x}" cy="${p.y}" r="1.5" fill="#6366f1" data-month="${p.month}" data-profit="${p.profit}" />`).join('')}
+                        </svg>
+                    </div>
+                </div>
+            `;
+            
+            const svg = container.querySelector('#line-chart-svg');
+            const tooltip = document.getElementById('chart-tooltip');
+            svg.querySelectorAll('.chart-point').forEach(point => {
+                point.addEventListener('mouseenter', (e) => {
+                    const month = e.target.dataset.month;
+                    const profit = formatCurrency(Number(e.target.dataset.profit));
+                    tooltip.innerHTML = `<div class="font-bold">${month}</div><div>Keuntungan: ${profit}</div>`;
+                    tooltip.style.display = 'block';
+                });
+                point.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+                point.addEventListener('mousemove', (e) => {
+                    tooltip.style.left = `${e.pageX + 15}px`;
+                    tooltip.style.top = `${e.pageY}px`;
+                });
+            });
+        };
+
+        const renderDonutChart = (container, submissions) => {
+            const marketingData = submissions.reduce((acc, sub) => {
+                if(sub.marketingName) {
+                    acc[sub.marketingName] = (acc[sub.marketingName] || 0) + 1;
+                }
+                return acc;
+            }, {});
+            const total = Object.values(marketingData).reduce((a, b) => a + b, 0);
+            const marketingEntries = Object.entries(marketingData);
+            
+            let cumulativePercent = 0;
+            const segments = marketingEntries.map(([name, count], index) => {
+                const percent = total > 0 ? (count / total) * 100 : 0;
+                const color = ['#4338ca', '#16a34a', '#f97316'][index % 3];
+                const segment = `<circle class="donut-segment" cx="21" cy="21" r="15.9155" fill="transparent" stroke="${color}" stroke-width="5" stroke-dasharray="${percent} ${100 - percent}" stroke-dashoffset="-${cumulativePercent}" data-name="${name}" data-count="${count}"></circle>`;
+                cumulativePercent += percent;
+                return { segment, name, color };
+            });
+
+            container.innerHTML = `
+                <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm h-full">
+                    <h3 class="font-semibold text-gray-800">Kinerja Marketing</h3>
+                    <p class="text-sm text-gray-500 mb-4">Distribusi sertifikat berdasarkan marketing pada periode terpilih.</p>
+                    <div class="flex flex-col sm:flex-row items-center justify-around gap-4 mt-8">
+                        <div class="w-32 h-32 relative">
+                            <svg id="donut-chart-svg" width="100%" height="100%" viewBox="0 0 42 42" class="transform -rotate-90">
+                                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e5e7eb" stroke-width="5"></circle>
+                                ${segments.map(s => s.segment).join('')}
+                            </svg>
+                        </div>
+                        <div class="space-y-2">
+                            ${segments.length > 0 ? segments.map(s => `
+                                <div class="flex items-center text-sm">
+                                    <span class="w-3 h-3 rounded-full mr-2" style="background-color: ${s.color};"></span>
+                                    <span class="text-gray-600">${s.name}</span>
+                                </div>
+                            `).join('') : '<p class="text-sm text-gray-400">Belum ada data</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const tooltip = document.getElementById('donut-chart-tooltip');
+            container.querySelectorAll('.donut-segment').forEach(segment => {
+                segment.addEventListener('mouseenter', (e) => {
+                    const name = e.target.dataset.name;
+                    const count = e.target.dataset.count;
+                    tooltip.innerHTML = `<strong>${name}</strong>: ${count} sertifikat`;
+                    tooltip.style.display = 'block';
+                });
+                segment.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+                segment.addEventListener('mousemove', (e) => {
+                    tooltip.style.left = `${e.pageX + 15}px`;
+                    tooltip.style.top = `${e.pageY}px`;
+                });
+            });
+        };
+        
+        // --- FUNGSI PENGATURAN (IMPOR/EKSPOR) ---
+        const renderSettingsPage = () => {
+            return `
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-4xl font-bold text-gray-800">Pengaturan</h1>
+                    <button id="logout-btn" class="bg-white border border-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg shadow-sm hover:bg-gray-100 transition duration-300">Keluar</button>
+                </div>
+                <div class="space-y-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Ekspor Data</h2>
+                        <p class="text-gray-600 mb-4">Simpan semua data yang Anda input (pengguna, transaksi, data sertifikat, dll.) ke dalam satu file JSON. File ini dapat digunakan untuk mencadangkan atau memindahkan data Anda.</p>
+                        <button id="export-btn" class="bg-indigo-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:bg-indigo-700">Ekspor Data Pengguna</button>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Impor Data</h2>
+                        <p class="text-gray-600 mb-4">Impor data dari file JSON yang sebelumnya diekspor. <strong class="text-red-600">Peringatan:</strong> Proses ini akan menimpa semua data input yang ada saat ini dengan data dari file yang Anda unggah. Struktur menu tidak akan berubah.</p>
+                        <div class="flex items-center gap-4">
+                            <input type="file" id="import-file-input" accept=".json" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                            <button id="import-btn" class="bg-green-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:bg-green-700 whitespace-nowrap">Impor Data</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        const attachSettingsEventListeners = () => {
+            document.getElementById('export-btn')?.addEventListener('click', handleExportData);
+            document.getElementById('import-btn')?.addEventListener('click', handleImportData);
+        };
+        
+        const handleExportData = () => {
+            const dataToExport = {};
+            EXPORTABLE_STORAGE_KEYS.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    // Mengambil bagian setelah 'sulthan-group-' untuk nama kunci di JSON
+                    const exportKey = key.replace('sulthan-group-', '');
+                    dataToExport[exportKey] = JSON.parse(data);
+                }
+            });
+
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            const date = new Date().toISOString().slice(0, 10);
+            a.download = `sulthan-group-backup-${date}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showMessage('Data berhasil diekspor!', 'success');
+        };
+
+        const handleImportData = () => {
+            const fileInput = document.getElementById('import-file-input');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showMessage('Silakan pilih file untuk diimpor.', 'error');
+                return;
+            }
+
+            openConfirmationModal(() => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        
+                        // Validasi sederhana, misalnya memeriksa keberadaan data 'users'
+                        if (!importedData.users) {
+                            throw new Error('File tidak valid atau rusak.');
+                        }
+
+                        // Menimpa data di localStorage
+                        Object.keys(importedData).forEach(key => {
+                            const storageKey = `sulthan-group-${key}`;
+                            if (EXPORTABLE_STORAGE_KEYS.includes(storageKey)) {
+                                saveToStorage(storageKey, importedData[key]);
+                            }
+                        });
+                        
+                        showMessage('Data berhasil diimpor! Aplikasi akan dimuat ulang.', 'success');
+                        
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+
+                    } catch (error) {
+                        showMessage(`Gagal mengimpor data: ${error.message}`, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            }, 'Anda yakin ingin menimpa semua data input saat ini? Aksi ini tidak dapat dibatalkan.');
+        };
+
 
         // --- MULAI APLIKASI ---
-        await initializeData();
+        initializeData();
         renderApp();
     });
     </script>
