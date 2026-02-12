@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifikasi Invoice - Sulthan Group</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div id="verification-box" class="p-8 text-center transition-all duration-500">
+            <!-- Header Status -->
+            <div id="status-header" class="bg-green-500 text-white py-4 rounded-t-2xl -m-8 mb-8">
+                <i id="status-icon" class="fas fa-check-circle fa-3x"></i>
+                <h1 id="status-text" class="text-2xl font-bold mt-2">Invoice Terverifikasi</h1>
+            </div>
+
+            <!-- Logo -->
+            <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgDdJxJat9hMDqIE193mBCBTJF5yY5Kjn87nVr4O2pagvGUtQcwFO_rkUCL_ohhIeu9r3kRD0MQAV7AXpyD9U7OT89as_2grP_zyeOQrMja2p0iZ0fU5KmIP6HQVMq4UjgudgeuvYb_OmYHBsoCimrfMnECeV9i-0bclAMNJwMPApWOltacow-ibCRjvQ/s320/b064008b-ebab-4c2f-bb61-e14f10fb3ef1.png" alt="Logo Sulthan Group" class="h-12 mx-auto my-6 grayscale opacity-50">
+
+            <p class="text-gray-600 mb-6">Cocokkan detail di bawah ini dengan invoice yang Anda terima.</p>
+
+            <!-- Verification Details -->
+            <div class="space-y-4 text-left bg-gray-50 p-6 rounded-lg border">
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-gray-500">Nomor Invoice:</span>
+                    <span id="verified-inv-number" class="font-bold text-gray-800 text-right">Memuat...</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-gray-500">Tanggal:</span>
+                    <span id="verified-date" class="font-bold text-gray-800">Memuat...</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-gray-500">Total Tagihan:</span>
+                    <span id="verified-total" class="font-bold text-green-600 text-lg">Memuat...</span>
+                </div>
+            </div>
+
+            <p class="text-xs text-gray-400 mt-8">
+                Jika data tidak cocok, harap hubungi kami segera.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // DOM Elements
+            const invNumberEl = document.getElementById('verified-inv-number');
+            const dateEl = document.getElementById('verified-date');
+            const totalEl = document.getElementById('verified-total');
+            const statusHeader = document.getElementById('status-header');
+            const statusIcon = document.getElementById('status-icon');
+            const statusText = document.getElementById('status-text');
+
+            // Function to format number to Rupiah
+            const formatRupiah = (amount) => {
+                return new Intl.NumberFormat('id-ID', {
+                    style: 'currency',
+                    currency: 'IDR',
+                    minimumFractionDigits: 0
+                }).format(amount);
+            };
+
+            // Get parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const inv = urlParams.get('inv');
+            const total = urlParams.get('total');
+            const date = urlParams.get('date');
+
+            // --- Logic to display data ---
+            // In a real application, you would fetch data from your server based on 'inv'
+            // and compare it with 'total' and 'date' from the URL.
+            // For this demo, we will assume the URL data is correct if it exists.
+
+            if (inv && total && date) {
+                // Data is valid, display it
+                invNumberEl.textContent = inv;
+                dateEl.textContent = date;
+                totalEl.textContent = formatRupiah(total);
+
+                // Set status to verified
+                statusHeader.classList.remove('bg-red-500');
+                statusHeader.classList.add('bg-green-500');
+                statusIcon.className = 'fas fa-check-circle fa-3x';
+                statusText.textContent = 'Invoice Terverifikasi';
+
+            } else {
+                // Data is invalid or missing
+                invNumberEl.textContent = '-';
+                dateEl.textContent = '-';
+                totalEl.textContent = '-';
+
+                // Set status to error/invalid
+                statusHeader.classList.remove('bg-green-500');
+                statusHeader.classList.add('bg-red-500');
+                statusIcon.className = 'fas fa-times-circle fa-3x';
+                statusText.textContent = 'Data Tidak Valid';
+            }
+        });
+    </script>
+</body>
+</html>

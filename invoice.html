@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Generator Invoice - Format A5</title>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0; /* slate-200 */
+        }
+        .invoice-wrapper {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 595px; /* Lebar A5 dalam piksel @ 96 DPI */
+            min-height: 842px; /* Tinggi A5 dalam piksel @ 96 DPI */
+        }
+        .no-print {
+            /* Elements that should not be printed or exported */
+        }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        .pdf-clone-container {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            z-index: -100;
+            background-color: white;
+        }
+        .form-input {
+            background-color: transparent;
+            border: none;
+            padding: 2px 1px;
+            width: 100%;
+        }
+        .form-input:focus {
+            outline: none;
+            box-shadow: 0 1px 0 0 #0d9488; /* teal-600 */
+        }
+        .table-input {
+            border: 1px solid #cbd5e1; /* slate-300 */
+            border-radius: 4px;
+            padding: 4px 8px;
+            width: 100%;
+            text-align: right;
+        }
+        .table-input:focus {
+            outline: none;
+            border-color: #0d9488; /* teal-600 */
+            box-shadow: 0 0 0 1px #0d9488;
+        }
+        .btn-loading {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <div id="invoice-container" class="invoice-wrapper bg-white rounded-lg mx-auto overflow-hidden">
+            
+            <header class="relative text-white">
+                <img src="https://sulthan.id/image/header.png" class="absolute top-0 left-0 w-full h-full object-cover" alt="Header Background" crossorigin="anonymous">
+                <div class="relative z-10 p-6 flex justify-between items-start h-[150px]">
+                    <div>
+                         <img src="https://sulthan.id/image/logosulthan.png" alt="Logo Sulthan Group" class="h-12" style="filter: brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0,0,0,0.5));" crossorigin="anonymous">
+                    </div>
+                    <h1 class="text-4xl font-bold tracking-wider">INVOICE</h1>
+                </div>
+            </header>
+            
+            <main class="p-6 text-xs text-slate-700 flex-grow flex flex-col">
+                <section class="grid grid-cols-2 gap-6 mb-6">
+                    <div class="space-y-3">
+                        <div class="border-b pb-2 space-y-1">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-map-marker-alt fa-fw text-slate-500"></i>
+                                <input type="text" id="company-address" value="Kubang Raya, No. 4, Pekanbaru" class="form-input text-xs">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-phone-alt fa-fw text-slate-500"></i>
+                                <input type="text" id="company-phone" value="123-456-7890" class="form-input text-xs">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-envelope fa-fw text-slate-500"></i>
+                                <input type="email" id="company-email" value="office@sulthan.id" class="form-input text-xs">
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-sm text-slate-500 mb-1">DIKIRIM KEPADA:</h2>
+                            <input type="text" id="ship-to-name" placeholder="Nama Penerima" class="font-bold text-slate-800 form-input text-xs">
+                            <input type="text" id="ship-to-phone" placeholder="Nomor Telpon" class="form-input text-xs">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between"><span class="font-semibold text-slate-500">No. Invoice:</span> <input type="text" id="invoice-number" readonly class="text-right form-input text-xs"></div>
+                        <div class="flex justify-between"><span class="font-semibold text-slate-500">Tanggal Order:</span> <input type="text" id="order-date" readonly class="text-right form-input text-xs"></div>
+                        <div class="border-t mt-3 pt-2 space-y-1">
+                            <div class="flex justify-between"><span class="font-semibold text-slate-500">Nama Penerima:</span> <input type="text" id="recipient-name" placeholder="Nama pada Rekening" class="text-right form-input text-xs"></div>
+                            <div class="flex justify-between"><span class="font-semibold text-slate-500">Nomor Rekening:</span> <input type="text" id="account-number" placeholder="Nomor Rekening Bank" class="text-right form-input text-xs"></div>
+                            <div class="flex justify-between"><span class="font-semibold text-slate-500">Nama Bank:</span> <input type="text" id="bank-name" placeholder="Nama Bank" class="text-right form-input text-xs"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="items-section" class="flex-grow">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead class="bg-[#00897b] text-white">
+                                <tr>
+                                    <th class="py-2 px-2 text-center font-semibold uppercase text-[10px] w-8">No</th>
+                                    <th class="py-2 px-2 text-left font-semibold uppercase text-[10px]">Deskripsi</th>
+                                    <th class="py-2 px-2 text-center font-semibold uppercase text-[10px] w-16">Jumlah</th>
+                                    <th class="py-2 px-2 text-right font-semibold uppercase text-[10px] w-24">Harga Satuan</th>
+                                    <th class="py-2 px-2 text-right font-semibold uppercase text-[10px] w-28">Total Harga</th>
+                                    <th class="py-2 w-8 no-print"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoice-items" class="divide-y divide-slate-200">
+                                
+                            </tbody>
+                            <tfoot class="border-t-2 border-slate-300">
+                                <tr>
+                                    <td colspan="4" class="py-2 px-2 text-right font-bold text-slate-800">Subtotal</td>
+                                    <td id="subtotal" class="py-2 px-2 text-right font-bold text-slate-800">Rp0</td>
+                                    <td class="no-print"></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3" class="px-2 text-right font-semibold text-slate-600">Diskon</td>
+                                    <td class="py-1 px-2 text-right">
+                                        <input type="number" id="tax-rate" value="11" class="w-12 p-1 text-right border rounded-md text-xs"> %
+                                    </td>
+                                    <td id="tax-amount" class="py-1 px-2 text-right font-semibold text-slate-600">Rp0</td>
+                                    <td class="no-print"></td>
+                                </tr>
+                                <tr class="bg-slate-100">
+                                    <td colspan="4" class="py-2 px-2 text-right font-extrabold text-slate-900 text-sm">TOTAL</td>
+                                    <td id="grand-total" class="py-2 px-2 text-right font-extrabold text-slate-900 text-sm">Rp0</td>
+                                    <td class="no-print"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div class="mt-3 no-print">
+                        <button id="add-item-btn" class="w-full border-2 border-dashed border-slate-300 font-semibold py-2 px-3 rounded-lg transition hover:bg-slate-100 hover:border-teal-600 hover:text-teal-600 flex items-center justify-center gap-2 text-xs text-slate-500">
+                            <i class="fas fa-plus-circle"></i> Tambah Item
+                        </button>
+                    </div>
+                </section>
+
+                <footer class="mt-8 pt-4 border-t border-slate-200">
+                    <div class="flex justify-between items-start">
+                        <div class="w-2/3 pr-4">
+                            <h3 class="font-bold text-slate-600 mb-1 text-sm">Syarat & Ketentuan</h3>
+                            <textarea id="notes" class="w-full text-left p-1 bg-slate-50 rounded-md text-[10px] h-20 form-input" rows="4">1. Mohon lakukan pembayaran di rekening yang tertera.
+2. Pembayaran dianggap sah setelah dana diterima di rekening.
+3. Invoice ini berlaku sebagai bukti pembayaran yang sah.</textarea>
+                        </div>
+                        <div class="text-center w-1/3">
+                            <h3 class="font-semibold text-slate-600 mb-1 text-xs">Diotorisasi Oleh:</h3>
+                            <div id="qrcode-placeholder" class="mt-1 mb-1 w-20 h-20 mx-auto p-1 border rounded-lg flex items-center justify-center"></div>
+                            <input type="text" id="authorized-name" value="Sulthan Group, Inc." class="p-1 form-input text-center font-bold text-slate-900 w-full text-xs">
+                        </div>
+                    </div>
+                </footer>
+            </main>
+
+            <div id="image-footer" class="w-full">
+                <img src="https://sulthan.id/image/footer.png" alt="Invoice Footer" class="w-full block"
+                onerror="this.onerror=null;this.src='https://placehold.co/1200x150/004D40/FFFFFF?text=Footer+Image+Not+Found';" crossorigin="anonymous">
+            </div>
+
+        </div>
+
+        <div class="mt-8 flex flex-wrap justify-center gap-4 no-print">
+             <button id="new-invoice-btn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 transform hover:scale-105 flex items-center gap-2">
+                <i class="fas fa-plus"></i> Invoice Baru
+            </button>
+            <button id="export-pdf-btn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 transform hover:scale-105 flex items-center gap-2">
+                <i class="fas fa-file-pdf"></i> Ekspor ke PDF
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const itemsContainer = document.getElementById('invoice-items');
+            const addItemBtn = document.getElementById('add-item-btn');
+            const subtotalEl = document.getElementById('subtotal');
+            const taxRateEl = document.getElementById('tax-rate');
+            const taxAmountEl = document.getElementById('tax-amount');
+            const grandTotalEl = document.getElementById('grand-total');
+            const exportPdfBtn = document.getElementById('export-pdf-btn');
+            const newInvoiceBtn = document.getElementById('new-invoice-btn');
+            const orderDateEl = document.getElementById('order-date');
+            const invoiceNumberEl = document.getElementById('invoice-number');
+            const qrcodePlaceholder = document.getElementById('qrcode-placeholder');
+
+            const generateInvoiceNumber = () => {
+                const now = new Date();
+                const year = String(now.getFullYear()).slice(-2);
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const randomPart = String(Math.floor(Math.random() * 9000) + 1000);
+                return `INV-${year}${month}-${randomPart}`;
+            };
+            
+            const generateQRCode = () => {
+                const invoiceNumber = invoiceNumberEl.value;
+                const grandTotal = parseRupiah(grandTotalEl.textContent);
+                const orderDate = orderDateEl.value;
+                const verificationUrl = `https://portal.sulthan.id/verify.html?inv=${encodeURIComponent(invoiceNumber)}&total=${grandTotal}&date=${encodeURIComponent(orderDate)}`;
+                qrcodePlaceholder.innerHTML = '';
+                try {
+                    const qr = qrcode(0, 'M');
+                    qr.addData(verificationUrl);
+                    qr.make();
+                    qrcodePlaceholder.innerHTML = qr.createImgTag(3, 4); 
+                    qrcodePlaceholder.querySelector('img').classList.add('w-full', 'h-full', 'object-contain');
+                } catch (e) {
+                    console.error("Error generating QR Code:", e);
+                    qrcodePlaceholder.innerHTML = '<p class="text-xs text-red-500">Gagal.</p>';
+                }
+            };
+
+            const setDates = () => {
+                const today = new Date();
+                const options = { day: 'numeric', month: 'long', year: 'numeric' };
+                orderDateEl.value = today.toLocaleDateString('id-ID', options);
+            };
+            
+            const formatRupiah = (amount) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+            const parseRupiah = (rupiahString) => Number(String(rupiahString).replace(/[^0-9,-]+/g, "").replace(",", "."));
+
+            const calculateTotals = () => {
+                let subtotal = 0;
+                itemsContainer.querySelectorAll('tr').forEach(row => {
+                    const totalCell = row.querySelector('.item-total');
+                    subtotal += parseRupiah(totalCell.textContent);
+                });
+
+                const taxRate = parseFloat(taxRateEl.value) || 0;
+                const taxAmount = subtotal * (taxRate / 100);
+                const grandTotal = subtotal + taxAmount;
+
+                subtotalEl.textContent = formatRupiah(subtotal);
+                taxAmountEl.textContent = formatRupiah(taxAmount);
+                grandTotalEl.textContent = formatRupiah(grandTotal);
+                generateQRCode();
+            };
+            
+            const updateItemNumbers = () => {
+                itemsContainer.querySelectorAll('tr').forEach((row, index) => {
+                    row.querySelector('.item-no').textContent = index + 1;
+                });
+            };
+
+            const createItemRow = (desc = '', qty = 1, price = 0) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-2 px-2 text-center text-slate-500 item-no"></td>
+                    <td class="py-2 px-2">
+                        <input type="text" placeholder="Deskripsi item" value="${desc}" class="product-desc w-full p-1 form-input font-semibold text-slate-800 text-xs">
+                    </td>
+                    <td class="py-2 px-2">
+                        <input type="number" value="${qty}" class="item-quantity table-input text-center text-xs">
+                    </td>
+                    <td class="py-2 px-2">
+                        <input type="text" placeholder="Rp0" value="${formatRupiah(price)}" class="item-price table-input text-xs">
+                    </td>
+                    <td class="py-2 px-2 text-right font-semibold item-total text-slate-800 text-xs">${formatRupiah(price * qty)}</td>
+                    <td class="py-2 text-center no-print">
+                        <button class="remove-item-btn text-slate-400 hover:text-red-500 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                `;
+                itemsContainer.appendChild(row);
+                attachRowListeners(row);
+                updateItemNumbers();
+            };
+            
+            const attachRowListeners = (row) => {
+                const priceInput = row.querySelector('.item-price');
+                const quantityInput = row.querySelector('.item-quantity');
+                const totalCell = row.querySelector('.item-total');
+                const removeBtn = row.querySelector('.remove-item-btn');
+
+                const updateItemTotal = () => {
+                    const price = parseRupiah(priceInput.value);
+                    const quantity = parseInt(quantityInput.value) || 0;
+                    totalCell.textContent = formatRupiah(price * quantity);
+                    calculateTotals();
+                };
+
+                priceInput.addEventListener('input', updateItemTotal);
+                priceInput.addEventListener('blur', () => { priceInput.value = formatRupiah(parseRupiah(priceInput.value)) });
+                quantityInput.addEventListener('input', updateItemTotal);
+                removeBtn.addEventListener('click', (e) => { 
+                    e.preventDefault(); 
+                    row.remove(); 
+                    updateItemNumbers();
+                    calculateTotals(); 
+                });
+            };
+
+            const resetInvoiceForm = () => {
+                document.querySelectorAll('input[type="text"], input[type="email"]').forEach(input => {
+                    if (!input.readOnly && !input.id.startsWith('company-')) {
+                         input.value = '';
+                    }
+                });
+                document.getElementById('notes').value = `1. Mohon lakukan pembayaran di rekening yang tertera.\n2. Pembayaran dianggap sah setelah dana diterima di rekening.\n3. Invoice ini berlaku sebagai bukti pembayaran yang sah.`;
+                document.getElementById('recipient-name').value = 'Hidayatullah';
+                document.getElementById('account-number').value = '1080000023920';
+                document.getElementById('bank-name').value = 'Bank Mandiri';
+                document.getElementById('authorized-name').value = 'Sulthan Group, Inc.'; 
+                itemsContainer.innerHTML = '';
+                invoiceNumberEl.value = generateInvoiceNumber();
+                setDates();
+                createItemRow('SKK Konstruksi', 2, 2000000);
+                createItemRow('SBU Konstruksi', 1, 1500000);
+                createItemRow('ISO 9001', 2, 10000000);
+                createItemRow('ISO 37001', 3, 30000000);
+                calculateTotals();
+            };
+
+            const waitForImages = (element) => {
+                const images = Array.from(element.getElementsByTagName('img'));
+                const promises = images.map(img => {
+                    return new Promise((resolve) => {
+                        if (img.complete && img.naturalHeight !== 0) {
+                            resolve();
+                        } else {
+                            img.onload = resolve;
+                            img.onerror = resolve; 
+                        }
+                    });
+                });
+                return Promise.all(promises);
+            };
+
+            const exportToPdf = async () => {
+                const originalButtonContent = exportPdfBtn.innerHTML;
+                exportPdfBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Mengekspor...`;
+                exportPdfBtn.disabled = true;
+                exportPdfBtn.classList.add('btn-loading');
+
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const invoiceElement = document.getElementById('invoice-container');
+                    const invoiceNumber = invoiceNumberEl.value.replace(/[^a-zA-Z0-9]/g, '_') || 'invoice';
+
+                    const clone = invoiceElement.cloneNode(true);
+                    
+                    const inputs = clone.querySelectorAll('input, textarea');
+                    inputs.forEach(input => {
+                        const replacement = document.createElement('div');
+                        // ===== PERBAIKAN: Menghapus .get yang salah =====
+                        const computedStyle = window.getComputedStyle(input);
+                        
+                        ['fontFamily', 'fontSize', 'fontWeight', 'color', 'textAlign', 'lineHeight', 'padding', 'width', 'boxSizing'].forEach(prop => {
+                            replacement.style[prop] = computedStyle[prop];
+                        });
+                        
+                        if (input.tagName.toLowerCase() === 'textarea') {
+                            replacement.innerHTML = input.value.replace(/\n/g, '<br>');
+                            replacement.style.whiteSpace = 'pre-wrap';
+                            replacement.style.height = input.offsetHeight + 'px';
+                        } else {
+                            replacement.textContent = input.value || ' ';
+                        }
+                        
+                        if (input.parentNode) {
+                            input.parentNode.replaceChild(replacement, input);
+                        }
+                    });
+
+                    clone.querySelectorAll('.no-print').forEach(el => el.remove());
+
+                    const cloneContainer = document.createElement('div');
+                    cloneContainer.className = 'pdf-clone-container';
+                    cloneContainer.style.width = '595px'; // Lebar A5
+                    cloneContainer.style.backgroundColor = "white";
+                    cloneContainer.appendChild(clone);
+                    document.body.appendChild(cloneContainer);
+                    
+                    await waitForImages(clone);
+
+                    const canvas = await html2canvas(clone, { 
+                        scale: 2, 
+                        logging: false, 
+                        useCORS: true
+                    });
+                    
+                    const imgData = canvas.toDataURL('image/png');
+                    
+                    // Gunakan ukuran custom berdasarkan canvas untuk memastikan semua konten tertangkap
+                    const imgWidth = canvas.width;
+                    const imgHeight = canvas.height;
+                    const pdfWidth = 420; // Lebar A5 dalam pt (595px = 420pt)
+                    const pdfHeight = (imgHeight * pdfWidth) / imgWidth; // Tinggi dinamis berdasarkan konten
+                    
+                    const pdf = new jsPDF({ 
+                        orientation: 'portrait', 
+                        unit: 'pt', 
+                        format: [pdfWidth, pdfHeight] // Format custom dengan tinggi dinamis
+                    });
+                    
+                    // Posisi dari kiri atas dengan ukuran penuh
+                    const x = 0;
+                    const y = 0;
+                    
+                    pdf.addImage(imgData, 'PNG', x, y, pdfWidth, pdfHeight);
+                    
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    
+                    if (isMobile) {
+                        // Untuk mobile, gunakan save() method dari jsPDF yang lebih kompatibel
+                        pdf.save(`${invoiceNumber}.pdf`);
+                    } else {
+                        const pdfBlob = pdf.output('blob');
+                        const pdfUrl = URL.createObjectURL(pdfBlob);
+                        const a = document.createElement('a');
+                        a.href = pdfUrl;
+                        a.download = `${invoiceNumber}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(pdfUrl);
+                    }
+                    
+                    document.body.removeChild(cloneContainer);
+
+                } catch (err) {
+                    console.error("Error generating PDF:", err);
+                    window.alert("Gagal membuat PDF. Silakan coba lagi.");
+                } finally {
+                    exportPdfBtn.innerHTML = originalButtonContent;
+                    exportPdfBtn.disabled = false;
+                    exportPdfBtn.classList.remove('btn-loading');
+                }
+            };
+
+            // --- EVENT LISTENERS ---
+            addItemBtn.addEventListener('click', (e) => { e.preventDefault(); createItemRow(); });
+            taxRateEl.addEventListener('input', calculateTotals);
+            newInvoiceBtn.addEventListener('click', resetInvoiceForm);
+            exportPdfBtn.addEventListener('click', exportToPdf);
+            
+            // --- INITIALIZATION ---
+            resetInvoiceForm();
+        });
+    </script>
+</body>
+</html>
